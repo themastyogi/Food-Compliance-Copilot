@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import {
   User, Lock, Mail, MessageCircle, Send, LogOut, Crown,
-  AlertCircle, Shield, Settings, Users, ArrowLeft, CreditCard
+  AlertCircle, Shield, Settings, Users, ArrowLeft, CreditCard, Download
 } from 'lucide-react';
 
 const MAX_QUERIES_EXPLORER = 5;
 
-// Toggle panels (kept in background but not displayed)
-const SHOW_DEMO_INFO = false;        // hide Demo Accounts box visually
-const SHOW_SECONDARY_IMAGE = false;  // placeholder for a second image section (kept “in background”)
+// Toggle panels preserved but hidden
+const SHOW_DEMO_INFO = false;
+const SHOW_SECONDARY_IMAGE = false;
+
+// Footer lines
+const COPYRIGHT = '© 2025 Food Compliance Copilot. All rights reserved.';
+const DISCLAIMER =
+  'AI-generated compliance guidance. Verify with official regulations and qualified professionals before final decisions. Not legal advice. Contact: themastyogi@gmail.com';
 
 // Security: Input sanitization helper
 const sanitizeInput = (input) => {
@@ -17,20 +22,16 @@ const sanitizeInput = (input) => {
 };
 
 // Security: Simple email validation
-const isValidEmail = (email) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-// Utility for safe HTML in downloads
+// Utils
 const escapeHtml = (str) =>
-  String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const stripTags = (html) => String(html).replace(/<[^>]+>/g, '');
 
 const App = () => {
-  const [currentView, setCurrentView] = useState('login'); // login, chat, admin, upgrade
+  const [currentView, setCurrentView] = useState('login'); // login, chat, admin, upgrade, downloads
   const [user, setUser] = useState(null);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -40,46 +41,21 @@ const App = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  // Default to Sign Up view so new users can register; they will be Explorer by default
-  const [showSignup, setShowSignup] = useState(true);
+  const [showSignup, setShowSignup] = useState(true); // default to Sign Up
 
-  // In-memory user DB with demo records (persisted to localStorage)
+  // In-memory DB (persisted)
   const [userDatabase, setUserDatabase] = useState([
-    {
-      id: 1,
-      email: 'admin@example.com',
-      password: 'admin123',
-      name: 'Admin User',
-      role: 'admin',
-      queriesUsed: 0,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 2,
-      email: 'explorer@example.com',
-      password: 'explorer123',
-      name: 'Explorer User',
-      role: 'explorer',
-      queriesUsed: 2,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 3,
-      email: 'pro@example.com',
-      password: 'pro123',
-      name: 'Pro User',
-      role: 'pro',
-      queriesUsed: 15,
-      createdAt: new Date().toISOString()
-    }
+    { id: 1, email: 'admin@example.com', password: 'admin123', name: 'Admin User', role: 'admin', queriesUsed: 0, createdAt: new Date().toISOString() },
+    { id: 2, email: 'explorer@example.com', password: 'explorer123', name: 'Explorer User', role: 'explorer', queriesUsed: 2, createdAt: new Date().toISOString() },
+    { id: 3, email: 'pro@example.com', password: 'pro123', name: 'Pro User', role: 'pro', queriesUsed: 15, createdAt: new Date().toISOString() }
   ]);
 
   // Menu / Templates state
   const [menuMode, setMenuMode] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState(null); // 'haccp' | 'pcqi' | 'recall' | 'nfp' | 'allergens'
-  const [templateContent, setTemplateContent] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [templateContentHTML, setTemplateContentHTML] = useState(''); // store HTML
 
-  // ===== Persistence (localStorage) =====
+  // ===== Persistence =====
   useEffect(() => {
     try {
       const raw = localStorage.getItem('fcc_user_db');
@@ -87,16 +63,10 @@ const App = () => {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) setUserDatabase(parsed);
       }
-    } catch (e) {
-      console.warn('Failed to load user DB from localStorage', e);
-    }
+    } catch {}
   }, []);
   useEffect(() => {
-    try {
-      localStorage.setItem('fcc_user_db', JSON.stringify(userDatabase));
-    } catch (e) {
-      console.warn('Failed to save user DB to localStorage', e);
-    }
+    try { localStorage.setItem('fcc_user_db', JSON.stringify(userDatabase)); } catch {}
   }, [userDatabase]);
   useEffect(() => {
     try {
@@ -120,40 +90,33 @@ const App = () => {
   // ===== Limits =====
   const getUserLimits = (role) => {
     switch (role) {
-      case 'admin':
-        return { maxQueries: -1, canManageUsers: true };
-      case 'pro':
-        return { maxQueries: -1, canManageUsers: false };
+      case 'admin': return { maxQueries: -1, canManageUsers: true };
+      case 'pro': return { maxQueries: -1, canManageUsers: false };
       case 'explorer':
-      default:
-        return { maxQueries: MAX_QUERIES_EXPLORER, canManageUsers: false };
+      default: return { maxQueries: MAX_QUERIES_EXPLORER, canManageUsers: false };
     }
   };
 
-  // ===== Auth Handlers =====
+  // ===== Auth =====
   const handleSignup = async () => {
     if (!signupName.trim() || !signupEmail.trim() || !signupPassword.trim()) {
       alert('Please fill in all fields'); return;
     }
-    if (!isValidEmail(signupEmail)) {
-      alert('Please enter a valid email address'); return;
-    }
-    if (signupPassword.length < 6) {
-      alert('Password must be at least 6 characters'); return;
-    }
+    if (!isValidEmail(signupEmail)) { alert('Please enter a valid email address'); return; }
+    if (signupPassword.length < 6) { alert('Password must be at least 6 characters'); return; }
     if (userDatabase.find(u => u.email === signupEmail.toLowerCase())) {
       alert('User with this email already exists'); return;
     }
 
     setIsLoading(true);
     try {
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 400));
       const newUser = {
         id: Date.now(),
         email: signupEmail.toLowerCase(),
         password: signupPassword,
         name: signupName.trim(),
-        role: 'explorer', // default: Explorer
+        role: 'explorer',
         queriesUsed: 0,
         createdAt: new Date().toISOString()
       };
@@ -164,22 +127,16 @@ const App = () => {
     } catch (e) {
       console.error('Signup error:', e);
       alert('Signup failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+    } finally { setIsLoading(false); }
   };
 
   const handleLogin = async () => {
-    if (!loginEmail.trim() || !loginPassword.trim()) {
-      alert('Please fill in all fields'); return;
-    }
-    if (!isValidEmail(loginEmail)) {
-      alert('Please enter a valid email address'); return;
-    }
+    if (!loginEmail.trim() || !loginPassword.trim()) { alert('Please fill in all fields'); return; }
+    if (!isValidEmail(loginEmail)) { alert('Please enter a valid email address'); return; }
 
     setIsLoading(true);
     try {
-      await new Promise(r => setTimeout(r, 400));
+      await new Promise(r => setTimeout(r, 300));
       const foundUser = userDatabase.find(
         u => u.email === loginEmail.toLowerCase() && u.password === loginPassword
       );
@@ -193,9 +150,7 @@ const App = () => {
     } catch (e) {
       console.error('Login error:', e);
       alert('Login failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+    } finally { setIsLoading(false); }
   };
 
   const handleLogout = () => {
@@ -204,8 +159,8 @@ const App = () => {
     setChatMessages([]);
     setLoginEmail(''); setLoginPassword('');
     setSignupName(''); setSignupEmail(''); setSignupPassword('');
-    setMenuMode(false); setSelectedTemplate(null); setTemplateContent('');
-    setShowSignup(true); // show Sign Up by default again
+    setMenuMode(false); setSelectedTemplate(null); setTemplateContentHTML('');
+    setShowSignup(true);
   };
 
   const handleUpgradeRequest = () => setCurrentView('upgrade');
@@ -213,60 +168,85 @@ const App = () => {
   const processUpgrade = async () => {
     setIsLoading(true);
     try {
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 800));
       const updatedUser = { ...user, role: 'pro' };
       setUser(updatedUser);
-      setUserDatabase(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+      setUserDatabase(prev => prev.map(u => (u.id === user.id ? updatedUser : u)));
       alert('Congratulations! You have been upgraded to Pro. You now have unlimited queries!');
       setCurrentView('chat');
     } catch {
       alert('Upgrade failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+    } finally { setIsLoading(false); }
   };
 
   const updateUserRole = (userId, newRole) => {
-    setUserDatabase(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
+    setUserDatabase(prev => prev.map(u => (u.id === userId ? { ...u, role: newRole } : u)));
     if (user && user.id === userId) setUser(prev => ({ ...prev, role: newRole }));
     alert(`User role updated to ${newRole}`);
   };
 
-  // ===== Menu → Template generation =====
+  // ===== Quick prompt catalog (Downloads) & Menu =====
+  const TEMPLATE_PROMPTS = {
+    haccp: "Generate a HACCP plan template (by product/process). Include process steps, hazards, CCPs, critical limits, monitoring, verification, corrective actions.",
+    pcqi: "Generate a FSMA Preventive Controls (PCQI) plan outline. Include hazard analysis, process/env/allergen/supply-chain preventive controls, monitoring, verification, corrective actions, recall plan, and records.",
+    recall: "Generate a US FDA recall plan SOP outline. Include roles, decision tree, lot identification, notifications, product retrieval, communication templates, effectiveness checks, and mock recall testing.",
+    nfp: "Generate an FDA Nutrition Facts panel checklist. Include mandatory elements, order, type size, dual-column rules, %DV rounding, footnotes, added sugars, and common pitfalls.",
+    allergens: "Generate an allergen declaration matrix for US/EU/India. Include top allergens per region, 'Contains' statement examples, precautionary labeling notes, and cross-contact controls.",
+    fssai: "Generate an FSSAI label format checklist outlining mandatory declarations, font sizes, veg/non-veg logo, FSSAI license, date/lot/best-before, nutrition panel, allergens.",
+    eu_fic: "Generate an EU FIC (1169/2011) QUID & allergen declaration table, with labeling examples, ingredient emphasis, and common pitfalls."
+  };
+
+  const htmlEnvelope = (inner) => {
+    // Append footer lines and subtle styling
+    const footer = `
+      <hr style="margin:16px 0;border:none;border-top:1px solid #e5e7eb">
+      <p style="font-size:12px;color:#6b7280;margin:0">${COPYRIGHT}</p>
+      <p style="font-size:12px;color:#6b7280;margin:0">${DISCLAIMER}</p>
+    `;
+    return `
+      <div style="font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.5;color:#111827">
+        ${inner}
+        ${footer}
+      </div>
+    `;
+  };
+
+  const promptToHTMLInstruction = (base) =>
+    `${base}\n\nFormat the response as clean semantic HTML only (no markdown), using <h2>, <h3>, <ul>, <ol>, <table>, and short paragraphs. Add clear section headings. Do not include <html> or <body> tags. Do not include external links or images.`;
+
+  const generateTemplateHTML = async (instruction) => {
+    // Call API with an HTML-formatted instruction
+    const resp = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          { role: 'user', content: promptToHTMLInstruction(instruction) }
+        ]
+      })
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => '');
+      console.error('API /api/chat error:', resp.status, errText);
+      throw new Error(`API ${resp.status}`);
+    }
+    const data = await resp.json();
+    let html = data.reply || '';
+    if (!html) html = '<p>No content returned.</p>';
+
+    // Wrap + add footer
+    return htmlEnvelope(html);
+  };
+
   const handleSelectTemplate = async (key) => {
     setSelectedTemplate(key);
     setIsLoading(true);
     setMenuMode(false);
-
-    const templatePrompts = {
-      haccp: "Generate a HACCP plan template (by product/process). Include process steps, hazards, CCPs, critical limits, monitoring, verification, corrective actions. Output as structured sections with clear headings.",
-      pcqi: "Generate a FSMA Preventive Controls (PCQI) plan outline. Include hazard analysis, process/environmental/allergen/supply-chain preventive controls, monitoring, verification, corrective actions, recall plan, and records.",
-      recall: "Generate a US FDA recall plan SOP outline. Include roles, decision tree, lot identification, notifications, product retrieval, communication templates, effectiveness checks, and mock recall testing.",
-      nfp: "Generate an FDA Nutrition Facts panel checklist. Include mandatory elements, order, type size, dual-column rules, %DV rounding, footnotes, added sugars, and common pitfalls.",
-      allergens: "Generate an allergen declaration matrix for US/EU/India. Include top allergens per region, 'Contains' statement examples, precautionary labelling notes, and cross-contact controls."
-    };
-
-    const instruction = templatePrompts[key] || "Generate a food compliance template.";
-
     try {
-      const resp = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: instruction }]
-        })
-      });
-
-      if (!resp.ok) {
-        const errText = await resp.text().catch(() => '');
-        console.error('API /api/chat error:', resp.status, errText);
-        throw new Error(`API ${resp.status}`);
-      }
-
-      const data = await resp.json();
-      const text = data.reply || 'No content returned.';
-      setTemplateContent(text);
-      setChatMessages(prev => [...prev, { type: 'bot', content: text }]);
+      const html = await generateTemplateHTML(TEMPLATE_PROMPTS[key] || 'Generate a food compliance template.');
+      setTemplateContentHTML(html);
+      setChatMessages(prev => [...prev, { type: 'bot-html', html }]);
     } catch (e) {
       console.error(e);
       setChatMessages(prev => [...prev, { type: 'bot', content: 'Failed to generate the template. Please try again.' }]);
@@ -275,59 +255,71 @@ const App = () => {
     }
   };
 
+  // Downloads screen quick actions
+  const doQuickPrompt = async (key) => {
+    // Navigate to chat and generate
+    setCurrentView('chat');
+    await handleSelectTemplate(key);
+  };
+
+  // ===== Downloads helpers =====
   const downloadContent = (format) => {
-    if (!templateContent) return;
+    if (!templateContentHTML) return;
 
     const nameMap = {
       haccp: 'haccp_plan',
       pcqi: 'fsma_pcqi_plan',
       recall: 'recall_plan_sop',
       nfp: 'fda_nutrition_facts_checklist',
-      allergens: 'allergen_declaration_matrix'
+      allergens: 'allergen_declaration_matrix',
+      fssai: 'fssai_label_checklist',
+      eu_fic: 'eu_fic_quid_allergen'
     };
     const baseName = nameMap[selectedTemplate] || 'compliance_template';
 
-    let blob;
-    let filename;
+    let blob, filename;
 
     switch (format) {
       case 'doc': {
-        const html = `<html><head><meta charset="utf-8"></head><body><pre>${escapeHtml(templateContent)}</pre></body></html>`;
-        blob = new Blob([html], { type: 'application/msword' });
+        const htmlDoc = `<!doctype html><html><head><meta charset="utf-8"></head><body>${templateContentHTML}</body></html>`;
+        blob = new Blob([htmlDoc], { type: 'application/msword' });
         filename = `${baseName}.doc`;
         break;
       }
       case 'pdf': {
-        // Placeholder: text file (users can "Save as PDF" via print). For real PDF, integrate a PDF lib later.
-        blob = new Blob([templateContent], { type: 'text/plain;charset=utf-8' });
-        filename = `${baseName}.pdf.txt`;
-        break;
+        // Print-ready HTML (user can Save as PDF)
+        const win = window.open('', '_blank', 'noopener,noreferrer');
+        if (!win) return;
+        win.document.open();
+        win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${baseName}</title></head><body>${templateContentHTML}<script>window.onload = () => setTimeout(() => window.print(), 200);</script></body></html>`);
+        win.document.close();
+        return; // no blob save; uses print dialog
       }
       case 'txt': {
-        blob = new Blob([templateContent], { type: 'text/plain;charset=utf-8' });
+        const txt = stripTags(templateContentHTML);
+        blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
         filename = `${baseName}.txt`;
         break;
       }
       case 'json': {
-        const json = JSON.stringify({ title: baseName, content: templateContent }, null, 2);
+        const json = JSON.stringify({ title: baseName, html: templateContentHTML }, null, 2);
         blob = new Blob([json], { type: 'application/json' });
         filename = `${baseName}.json`;
         break;
       }
       case 'yaml': {
-        const yaml = `title: ${baseName}\ncontent: |\n  ${templateContent.replace(/\n/g, '\n  ')}`;
+        const yaml = `title: ${baseName}\nhtml: |\n  ${templateContentHTML.replace(/\n/g, '\n  ')}`;
         blob = new Blob([yaml], { type: 'text/yaml' });
         filename = `${baseName}.yaml`;
         break;
       }
       case 'csv': {
-        const csv = `content\n"${templateContent.replace(/"/g, '""').replace(/\n/g, '\\n')}"`;
+        const csv = `content_html\n"${templateContentHTML.replace(/"/g, '""').replace(/\n/g, '\\n')}"`;
         blob = new Blob([csv], { type: 'text/csv' });
         filename = `${baseName}.csv`;
         break;
       }
-      default:
-        return;
+      default: return;
     }
 
     const url = URL.createObjectURL(blob);
@@ -342,6 +334,7 @@ const App = () => {
   // ===== Chat handler =====
   const sendMessage = async () => {
     if (!inputMessage.trim()) return;
+
     const userLimits = getUserLimits(user.role);
     if (userLimits.maxQueries !== -1 && user.queriesUsed >= userLimits.maxQueries) {
       alert('You have reached your query limit. Please upgrade to Pro for unlimited access.');
@@ -353,20 +346,19 @@ const App = () => {
     setChatMessages(prev => [...prev, { type: 'user', content: sanitizedMessage }]);
     setInputMessage('');
 
-    // Local Menu trigger
     if (/^\s*menu\s*$/i.test(sanitizedMessage)) {
-      setMenuMode(true);
-      setIsLoading(false);
-      return;
+      setMenuMode(true); setIsLoading(false); return;
     }
 
     try {
-      // Build conversation payload
       const oaMessages = [
-        ...chatMessages.map(m => ({
-          role: m.type === 'user' ? 'user' : 'assistant',
-          content: m.content
-        })),
+        ...chatMessages.map(m => (
+          m.type === 'user'
+            ? { role: 'user', content: m.content }
+            : m.type === 'bot' ? { role: 'assistant', content: m.content }
+            : m.type === 'bot-html' ? { role: 'assistant', content: stripTags(m.html) } // pass text-only for context
+            : { role: 'assistant', content: '' }
+        )),
         { role: 'user', content: sanitizedMessage }
       ];
 
@@ -384,28 +376,22 @@ const App = () => {
 
       const data = await resp.json();
       const assistantText = data.reply || 'Sorry, I could not generate a response.';
-
       setChatMessages(prev => [...prev, { type: 'bot', content: assistantText }]);
 
-      // Update query count
       const updatedUser = { ...user, queriesUsed: user.queriesUsed + 1 };
       setUser(updatedUser);
       setUserDatabase(prev => prev.map(u => (u.id === user.id ? updatedUser : u)));
-    } catch (error) {
-      console.error('Chat error:', error);
-      setChatMessages(prev => [...prev, {
-        type: 'bot',
-        content: 'Sorry, an error occurred. Please try again.'
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (err) {
+      console.error('Chat error:', err);
+      setChatMessages(prev => [...prev, { type: 'bot', content: 'Sorry, an error occurred. Please try again.' }]);
+    } finally { setIsLoading(false); }
   };
 
+  // ===== UI helpers =====
   const getRoleColor = (role) => {
     switch (role) {
       case 'admin': return 'bg-red-600 text-white';
-      case 'pro': return 'bg-yellow-500 text-black';
+      case 'pro': return 'bg-yellow-400 text-black';
       case 'explorer': return 'bg-green-500 text-black';
       default: return 'bg-gray-500 text-white';
     }
@@ -422,7 +408,7 @@ const App = () => {
 
   // ===== VIEWS =====
 
-  // LOGIN/SIGNUP VIEW
+  // LOGIN/SIGNUP
   if (currentView === 'login') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-800 flex items-center justify-center p-4">
@@ -431,9 +417,7 @@ const App = () => {
             <div className="bg-gradient-to-r from-blue-400 to-purple-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
               <Shield className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-3xl font-extrabold text-white mb-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-              Food Compliance Copilot
-            </h1>
+            <h1 className="text-3xl font-extrabold text-white mb-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">Food Compliance Copilot</h1>
             <p className="text-gray-200">AI-Powered Compliance Assistant</p>
           </div>
 
@@ -491,11 +475,8 @@ const App = () => {
               <button
                 onClick={() => {
                   setShowSignup(!showSignup);
-                  setLoginEmail('');
-                  setLoginPassword('');
-                  setSignupName('');
-                  setSignupEmail('');
-                  setSignupPassword('');
+                  setLoginEmail(''); setLoginPassword('');
+                  setSignupName(''); setSignupEmail(''); setSignupPassword('');
                 }}
                 className="ml-2 text-blue-300 hover:text-blue-200 font-semibold underline"
               >
@@ -504,7 +485,6 @@ const App = () => {
             </p>
           </div>
 
-          {/* Demo accounts info (kept but hidden from view) */}
           {SHOW_DEMO_INFO && (
             <div className="mt-6 p-3 bg-blue-500/20 rounded-lg border border-blue-400/30">
               <p className="text-sm text-blue-200 mb-2">Demo Accounts:</p>
@@ -514,26 +494,17 @@ const App = () => {
             </div>
           )}
 
-          {/* Optional secondary image section (hidden but preserved) */}
-          {SHOW_SECONDARY_IMAGE && (
-            <div className="mt-4 rounded-lg overflow-hidden">
-              {/* <img src="/some-image.jpg" alt="Background visual" className="w-full h-32 object-cover opacity-60" /> */}
-            </div>
-          )}
+          {SHOW_SECONDARY_IMAGE && (<div className="mt-4 rounded-lg overflow-hidden">{/* hidden image section */}</div>)}
 
-          {/* Role explanation */}
           <div className="mt-4 p-3 bg-green-500/20 rounded-lg border border-green-400/30">
-            <p className="text-xs text-green-100">
-              <strong>New users start as Explorer</strong> (5 free queries). 
-              Upgrade to Pro for unlimited queries. Admins can manage all users.
-            </p>
+            <p className="text-xs text-green-100"><strong>New users start as Explorer</strong> (5 free queries). Upgrade to Pro for unlimited queries. Admins can manage all users.</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // UPGRADE VIEW
+  // UPGRADE
   if (currentView === 'upgrade') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-800 flex items-center justify-center p-4">
@@ -549,9 +520,7 @@ const App = () => {
           <div className="space-y-6">
             <div className="bg-green-500/20 border border-green-400/30 rounded-lg p-4">
               <h3 className="text-green-300 font-semibold mb-2">Current Plan: Explorer</h3>
-              <p className="text-green-100 text-sm">
-                Queries used: {user.queriesUsed}/{MAX_QUERIES_EXPLORER}
-              </p>
+              <p className="text-green-100 text-sm">Queries used: {user.queriesUsed}/{MAX_QUERIES_EXPLORER}</p>
             </div>
 
             <div className="bg-yellow-500/20 border border-yellow-400/30 rounded-lg p-4">
@@ -599,7 +568,7 @@ const App = () => {
     );
   }
 
-  // ADMIN VIEW
+  // ADMIN
   if (currentView === 'admin' && user && getUserLimits(user.role).canManageUsers) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-900 via-purple-900 to-indigo-800 p-6">
@@ -620,8 +589,7 @@ const App = () => {
                   onClick={() => setCurrentView('chat')}
                   className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
                 >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Back to Chat</span>
+                  <ArrowLeft className="w-4 h-4" /><span>Back to Chat</span>
                 </button>
                 <button
                   onClick={handleLogout}
@@ -635,10 +603,8 @@ const App = () => {
 
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
             <h2 className="text-xl font-semibold text-white mb-6 flex items-center">
-              <Users className="w-5 h-5 mr-2" />
-              User Management
+              <Users className="w-5 h-5 mr-2" /> User Management
             </h2>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {userDatabase.filter(u => u.id !== user.id).map(dbUser => (
                 <div key={dbUser.id} className="bg-white/5 p-4 rounded-lg border border-white/10">
@@ -651,65 +617,103 @@ const App = () => {
                       {dbUser.role.toUpperCase()}
                     </span>
                   </div>
-                  
                   <div className="mb-4">
                     <p className="text-gray-200 text-sm">
                       Queries: <span className="font-medium">{dbUser.queriesUsed}</span>
                       {dbUser.role === 'explorer' && ` / ${MAX_QUERIES_EXPLORER}`}
                     </p>
-                    <p className="text-gray-300 text-xs">
-                      Created: {new Date(dbUser.createdAt).toLocaleDateString()}
-                    </p>
+                    <p className="text-gray-300 text-xs">Created: {new Date(dbUser.createdAt).toLocaleDateString()}</p>
                   </div>
-                  
                   <div className="space-y-2">
                     <p className="text-white text-sm font-medium">Change Role:</p>
                     <div className="flex space-x-1">
-                      <button
-                        onClick={() => updateUserRole(dbUser.id, 'explorer')}
-                        disabled={dbUser.role === 'explorer'}
-                        className={`px-2 py-1 rounded text-xs transition-colors ${
-                          dbUser.role === 'explorer' 
-                            ? 'bg-green-500/40 text-black/70 cursor-not-allowed' 
-                            : 'bg-green-500 text-black hover:bg-green-400'
-                        }`}
-                      >
-                        Explorer
-                      </button>
-                      <button
-                        onClick={() => updateUserRole(dbUser.id, 'pro')}
-                        disabled={dbUser.role === 'pro'}
-                        className={`px-2 py-1 rounded text-xs transition-colors ${
-                          dbUser.role === 'pro' 
-                            ? 'bg-yellow-500/40 text-black/70 cursor-not-allowed' 
-                            : 'bg-yellow-400 text-black hover:bg-yellow-300'
-                        }`}
-                      >
-                        Pro
-                      </button>
-                      <button
-                        onClick={() => updateUserRole(dbUser.id, 'admin')}
-                        disabled={dbUser.role === 'admin'}
-                        className={`px-2 py-1 rounded text-xs transition-colors ${
-                          dbUser.role === 'admin' 
-                            ? 'bg-red-600/40 text-white/70 cursor-not-allowed' 
-                            : 'bg-red-600 text-white hover:bg-red-500'
-                        }`}
-                      >
-                        Admin
-                      </button>
+                      <button onClick={() => updateUserRole(dbUser.id, 'explorer')} disabled={dbUser.role === 'explorer'}
+                        className={`px-2 py-1 rounded text-xs ${dbUser.role === 'explorer' ? 'bg-green-500/40 text-black/70' : 'bg-green-500 text-black hover:bg-green-400'}`}>Explorer</button>
+                      <button onClick={() => updateUserRole(dbUser.id, 'pro')} disabled={dbUser.role === 'pro'}
+                        className={`px-2 py-1 rounded text-xs ${dbUser.role === 'pro' ? 'bg-yellow-500/40 text-black/70' : 'bg-yellow-400 text-black hover:bg-yellow-300'}`}>Pro</button>
+                      <button onClick={() => updateUserRole(dbUser.id, 'admin')} disabled={dbUser.role === 'admin'}
+                        className={`px-2 py-1 rounded text-xs ${dbUser.role === 'admin' ? 'bg-red-600/40 text-white/70' : 'bg-red-600 text-white hover:bg-red-500'}`}>Admin</button>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
+
         </div>
       </div>
     );
   }
 
-  // CHAT VIEW
+  // DOWNLOADS (Quick links that auto-prompt the chatbot)
+  if (currentView === 'downloads' && user) {
+    const links = [
+      { key: 'haccp', label: 'HACCP plan template (by product/process)' },
+      { key: 'pcqi', label: 'FSMA Preventive Controls plan outline' },
+      { key: 'recall', label: 'Recall plan SOP (US FDA)' },
+      { key: 'nfp', label: 'FDA Nutrition Facts panel checklist' },
+      { key: 'allergens', label: 'Allergen declaration matrix (US/EU/India)' },
+      { key: 'fssai', label: 'FSSAI label format checklist' },
+      { key: 'eu_fic', label: 'EU FIC QUID & allergen table' }
+    ];
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 flex flex-col">
+        {/* Header */}
+        <div className="bg-white/10 backdrop-blur-lg border-b border-white/20 px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center space-x-3">
+            <div className="bg-gradient-to-r from-blue-400 to-purple-500 w-10 h-10 rounded-full flex items-center justify-center">
+              <Download className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-white font-extrabold drop-shadow">Downloads</h1>
+              <p className="text-gray-200 text-sm">Click an item to auto-generate and open in Chat</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button onClick={() => setCurrentView('chat')}
+              className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-500">Back to Chat</button>
+            <button onClick={handleLogout}
+              className="bg-red-600/70 hover:bg-red-600 text-white p-2 rounded-lg">
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 p-6">
+          <div className="max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {links.map(item => (
+              <button
+                key={item.key}
+                onClick={() => doQuickPrompt(item.key)}
+                className="text-left bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg p-4 transition"
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {templateContentHTML && (
+            <div className="max-w-3xl mx-auto mt-6 bg-white/10 border border-white/20 rounded-lg p-4 text-gray-100">
+              <h4 className="text-white font-semibold mb-2">Latest Generated Template</h4>
+              <div className="flex flex-wrap gap-2 mb-3">
+                <button className="bg-blue-600 text-white hover:bg-blue-500 px-3 py-2 rounded" onClick={() => downloadContent('doc')}>Export as Word (.doc)</button>
+                <button className="bg-blue-600 text-white hover:bg-blue-500 px-3 py-2 rounded" onClick={() => downloadContent('pdf')}>Export as PDF</button>
+                <button className="bg-blue-600 text-white hover:bg-blue-500 px-3 py-2 rounded" onClick={() => downloadContent('txt')}>Export as TXT</button>
+                <button className="bg-blue-600 text-white hover:bg-blue-500 px-3 py-2 rounded" onClick={() => downloadContent('json')}>Export as JSON</button>
+                <button className="bg-blue-600 text-white hover:bg-blue-500 px-3 py-2 rounded" onClick={() => downloadContent('yaml')}>Export as YAML</button>
+                <button className="bg-blue-600 text-white hover:bg-blue-500 px-3 py-2 rounded" onClick={() => downloadContent('csv')}>Export as CSV</button>
+              </div>
+              <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: templateContentHTML }} />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // CHAT
   if (currentView === 'chat' && user) {
     const userLimits = getUserLimits(user.role);
 
@@ -727,7 +731,17 @@ const App = () => {
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentView('downloads')}
+              className="bg-blue-600 text-white px-3 py-1 rounded-lg transition-colors text-sm hover:bg-blue-500"
+              title="Open Downloads"
+            >
+              <span className="inline-flex items-center gap-1">
+                <Download className="w-4 h-4" /> Downloads
+              </span>
+            </button>
+
             <div className="text-right">
               <p className="text-white font-medium flex items-center justify-end gap-2">
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded ${getRoleColor(user.role)} shadow`}>
@@ -748,9 +762,7 @@ const App = () => {
                 onClick={() => setCurrentView('admin')}
                 className="bg-red-600 text-white px-3 py-1 rounded-lg transition-colors text-sm hover:bg-red-500"
               >
-                <span className="inline-flex items-center gap-1">
-                  <Settings className="w-4 h-4" /> Admin
-                </span>
+                <span className="inline-flex items-center gap-1"><Settings className="w-4 h-4" /> Admin</span>
               </button>
             )}
 
@@ -759,9 +771,7 @@ const App = () => {
                 onClick={handleUpgradeRequest}
                 className="bg-yellow-400 text-black px-3 py-1 rounded-lg transition-colors text-sm hover:bg-yellow-300"
               >
-                <span className="inline-flex items-center gap-1">
-                  <Crown className="w-4 h-4" /> Upgrade
-                </span>
+                <span className="inline-flex items-center gap-1"><Crown className="w-4 h-4" /> Upgrade</span>
               </button>
             )}
 
@@ -781,9 +791,9 @@ const App = () => {
               <div className="bg-gradient-to-r from-blue-400 to-purple-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <MessageCircle className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-white text-xl font-semibold mb-2 drop-shadow">Welcome to Food Compliance Copilot</h3>
+              <h3 className="text-white text-xl font-semibold mb-2">Welcome to Food Compliance Copilot</h3>
               <p className="text-gray-200 max-w-md mx-auto">
-                Ask anything about FDA, FSMA, HACCP, FSSAI, EU FIC, Codex, allergens, and labeling. Type <span className="font-semibold">menu</span> to open templates.
+                Ask anything about FDA, FSMA, HACCP, FSSAI, EU FIC, Codex, allergens, and labeling. Type <span className="font-semibold">menu</span> to open templates, or use <span className="font-semibold">Downloads</span> for quick links.
               </p>
             </div>
           )}
@@ -801,28 +811,35 @@ const App = () => {
               </ul>
               <div className="pt-3 flex gap-2">
                 <button className="bg-gray-500/30 hover:bg-gray-500/40 px-3 py-2 rounded" onClick={() => setMenuMode(false)}>0) Go back</button>
-                <button className="bg-gray-500/30 hover:bg-gray-500/40 px-3 py-2 rounded" onClick={() => { setMenuMode(false); setSelectedTemplate(null); setTemplateContent(''); }}>00) Main menu</button>
+                <button className="bg-gray-500/30 hover:bg-gray-500/40 px-3 py-2 rounded" onClick={() => { setMenuMode(false); setSelectedTemplate(null); setTemplateContentHTML(''); }}>00) Main menu</button>
               </div>
             </div>
           )}
 
-          {/* Render chat bubbles */}
+          {/* Chat messages */}
           {chatMessages.map((message, index) => (
             <div key={index} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                  message.type === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white/10 backdrop-blur-sm text-gray-100 border border-white/20'
-                }`}
-              >
-                {message.content}
-              </div>
+              {message.type === 'bot-html' ? (
+                <div
+                  className="max-w-xl lg:max-w-3xl px-4 py-3 rounded-lg bg-white/10 backdrop-blur-sm text-gray-100 border border-white/20"
+                  dangerouslySetInnerHTML={{ __html: message.html }}
+                />
+              ) : (
+                <div
+                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                    message.type === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white/10 backdrop-blur-sm text-gray-100 border border-white/20'
+                  }`}
+                >
+                  {message.content}
+                </div>
+              )}
             </div>
           ))}
 
           {/* Download options when template generated */}
-          {templateContent && (
+          {templateContentHTML && (
             <div className="bg-white/10 backdrop-blur-sm text-gray-100 border border-white/20 rounded-lg p-4">
               <h4 className="text-white font-semibold mb-2">Download Options</h4>
               <div className="flex flex-wrap gap-2">
@@ -862,12 +879,7 @@ const App = () => {
                 : `You have ${userLimits.maxQueries - user.queriesUsed} queries remaining.`}
             </p>
             {user.queriesUsed >= userLimits.maxQueries && (
-              <button
-                onClick={handleUpgradeRequest}
-                className="bg-yellow-300 hover:bg-yellow-200 text-black px-3 py-1 rounded text-sm ml-2"
-              >
-                Upgrade Now
-              </button>
+              <button onClick={handleUpgradeRequest} className="bg-yellow-300 hover:bg-yellow-200 text-black px-3 py-1 rounded text-sm ml-2">Upgrade Now</button>
             )}
           </div>
         )}
@@ -879,12 +891,7 @@ const App = () => {
               type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  sendMessage();
-                }
-              }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               placeholder="Ask about food labeling, allergens, HACCP, FSSAI, EU FIC... (type 'menu' for templates)"
               className="flex-1 bg-white/10 border border-white/30 rounded-lg px-4 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
               disabled={isLoading || (userLimits.maxQueries !== -1 && user.queriesUsed >= userLimits.maxQueries)}
