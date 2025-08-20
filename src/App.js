@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   User, Lock, Mail, MessageCircle, Send, LogOut, Crown,
-  AlertCircle, Shield, Settings, Users, ArrowLeft, CreditCard, Download
+  AlertCircle, Shield, Settings, Users, ArrowLeft, CreditCard, Download, ChevronDown
 } from 'lucide-react';
 
 const MAX_QUERIES_EXPLORER = 5;
@@ -27,7 +27,6 @@ const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 // Utils
 const escapeHtml = (str) =>
   String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
 const stripTags = (html) => String(html).replace(/<[^>]+>/g, '');
 
 const App = () => {
@@ -42,6 +41,14 @@ const App = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showSignup, setShowSignup] = useState(true); // default to Sign Up
+
+  // Forgot password state
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+
+  // User menu dropdown
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   // In-memory DB (persisted)
   const [userDatabase, setUserDatabase] = useState([
@@ -86,6 +93,19 @@ const App = () => {
       else localStorage.removeItem('fcc_current_user');
     } catch {}
   }, [user]);
+
+  // Close user dropdown on outside click
+  useEffect(() => {
+    const onClick = (e) => {
+      const menu = document.getElementById('user-menu-dropdown');
+      const trigger = document.getElementById('user-menu-trigger');
+      if (menu && trigger && !menu.contains(e.target) && !trigger.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, []);
 
   // ===== Limits =====
   const getUserLimits = (role) => {
@@ -153,6 +173,30 @@ const App = () => {
     } finally { setIsLoading(false); }
   };
 
+  const handleForgotPassword = () => {
+    setShowForgot(true);
+    setShowSignup(false);
+    setLoginEmail('');
+    setLoginPassword('');
+  };
+
+  const submitForgotPassword = () => {
+    if (!isValidEmail(forgotEmail)) { alert('Enter a valid email'); return; }
+    if (!forgotNewPassword || forgotNewPassword.length < 6) { alert('New password must be at least 6 characters'); return; }
+    const exists = userDatabase.find(u => u.email === forgotEmail.toLowerCase());
+    if (!exists) { alert('No user found with this email'); return; }
+    // Update password in DB
+    const updatedDb = userDatabase.map(u =>
+      u.email === forgotEmail.toLowerCase() ? { ...u, password: forgotNewPassword } : u
+    );
+    setUserDatabase(updatedDb);
+    alert('Password updated. Please sign in.');
+    setShowForgot(false);
+    setShowSignup(false);
+    setForgotEmail('');
+    setForgotNewPassword('');
+  };
+
   const handleLogout = () => {
     setUser(null);
     setCurrentView('login');
@@ -161,9 +205,10 @@ const App = () => {
     setSignupName(''); setSignupEmail(''); setSignupPassword('');
     setMenuMode(false); setSelectedTemplate(null); setTemplateContentHTML('');
     setShowSignup(true);
+    setUserMenuOpen(false);
   };
 
-  const handleUpgradeRequest = () => setCurrentView('upgrade');
+  const handleUpgradeRequest = () => { setCurrentView('upgrade'); setUserMenuOpen(false); };
 
   const processUpgrade = async () => {
     setIsLoading(true);
@@ -197,7 +242,6 @@ const App = () => {
   };
 
   const htmlEnvelope = (inner) => {
-    // Append footer lines and subtle styling
     const footer = `
       <hr style="margin:16px 0;border:none;border-top:1px solid #e5e7eb">
       <p style="font-size:12px;color:#6b7280;margin:0">${COPYRIGHT}</p>
@@ -215,7 +259,6 @@ const App = () => {
     `${base}\n\nFormat the response as clean semantic HTML only (no markdown), using <h2>, <h3>, <ul>, <ol>, <table>, and short paragraphs. Add clear section headings. Do not include <html> or <body> tags. Do not include external links or images.`;
 
   const generateTemplateHTML = async (instruction) => {
-    // Call API with an HTML-formatted instruction
     const resp = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -225,7 +268,6 @@ const App = () => {
         ]
       })
     });
-
     if (!resp.ok) {
       const errText = await resp.text().catch(() => '');
       console.error('API /api/chat error:', resp.status, errText);
@@ -234,8 +276,6 @@ const App = () => {
     const data = await resp.json();
     let html = data.reply || '';
     if (!html) html = '<p>No content returned.</p>';
-
-    // Wrap + add footer
     return htmlEnvelope(html);
   };
 
@@ -257,7 +297,6 @@ const App = () => {
 
   // Downloads screen quick actions
   const doQuickPrompt = async (key) => {
-    // Navigate to chat and generate
     setCurrentView('chat');
     await handleSelectTemplate(key);
   };
@@ -293,7 +332,7 @@ const App = () => {
         win.document.open();
         win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${baseName}</title></head><body>${templateContentHTML}<script>window.onload = () => setTimeout(() => window.print(), 200);</script></body></html>`);
         win.document.close();
-        return; // no blob save; uses print dialog
+        return;
       }
       case 'txt': {
         const txt = stripTags(templateContentHTML);
@@ -356,7 +395,7 @@ const App = () => {
           m.type === 'user'
             ? { role: 'user', content: m.content }
             : m.type === 'bot' ? { role: 'assistant', content: m.content }
-            : m.type === 'bot-html' ? { role: 'assistant', content: stripTags(m.html) } // pass text-only for context
+            : m.type === 'bot-html' ? { role: 'assistant', content: stripTags(m.html) }
             : { role: 'assistant', content: '' }
         )),
         { role: 'user', content: sanitizedMessage }
@@ -421,10 +460,49 @@ const App = () => {
             <p className="text-gray-200">AI-Powered Compliance Assistant</p>
           </div>
 
+          {/* Forgot Password small card */}
+          {showForgot ? (
+            <div className="space-y-4">
+              <div className="relative">
+                <Mail className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="email"
+                  placeholder="Registered Email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  className="w-full bg-white/10 border border-white/30 rounded-lg px-12 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
+              <div className="relative">
+                <Lock className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="password"
+                  placeholder="New Password"
+                  value={forgotNewPassword}
+                  onChange={(e) => setForgotNewPassword(e.target.value)}
+                  className="w-full bg-white/10 border border-white/30 rounded-lg px-12 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={submitForgotPassword}
+                  className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 rounded-lg transition"
+                >
+                  Reset Password
+                </button>
+                <button
+                  onClick={() => { setShowForgot(false); setShowSignup(false); }}
+                  className="flex-1 bg-gray-600/30 hover:bg-gray-600/40 text-gray-200 font-semibold py-3 rounded-lg transition"
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            </div>
+          ) : (
           <div className="space-y-4">
             {showSignup && (
               <div className="relative">
-                <User className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                <User className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="Full Name"
@@ -437,7 +515,7 @@ const App = () => {
             )}
 
             <div className="relative">
-              <Mail className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 transform -translate-y-1/2" />
+              <Mail className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="email"
                 placeholder="Email Address"
@@ -449,7 +527,7 @@ const App = () => {
             </div>
 
             <div className="relative">
-              <Lock className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 transform -translate-y-1/2" />
+              <Lock className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="password"
                 placeholder="Password"
@@ -467,22 +545,36 @@ const App = () => {
             >
               {isLoading ? 'Processing...' : (showSignup ? 'Create Explorer Account' : 'Sign In')}
             </button>
+
+            {!showSignup && !showForgot && (
+              <div className="text-right">
+                <button
+                  className="text-blue-300 hover:text-blue-200 text-sm underline"
+                  onClick={handleForgotPassword}
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
           </div>
+          )}
 
           <div className="mt-6 text-center">
-            <p className="text-gray-200">
-              {showSignup ? 'Already have an account?' : "Don't have an account?"}
-              <button
-                onClick={() => {
-                  setShowSignup(!showSignup);
-                  setLoginEmail(''); setLoginPassword('');
-                  setSignupName(''); setSignupEmail(''); setSignupPassword('');
-                }}
-                className="ml-2 text-blue-300 hover:text-blue-200 font-semibold underline"
-              >
-                {showSignup ? 'Sign In' : 'Create Account'}
-              </button>
-            </p>
+            {!showForgot && (
+              <p className="text-gray-200">
+                {showSignup ? 'Already have an account?' : "Don't have an account?"}
+                <button
+                  onClick={() => {
+                    setShowSignup(!showSignup);
+                    setLoginEmail(''); setLoginPassword('');
+                    setSignupName(''); setSignupEmail(''); setSignupPassword('');
+                  }}
+                  className="ml-2 text-blue-300 hover:text-blue-200 font-semibold underline"
+                >
+                  {showSignup ? 'Sign In' : 'Create Account'}
+                </button>
+              </p>
+            )}
           </div>
 
           {SHOW_DEMO_INFO && (
@@ -587,7 +679,7 @@ const App = () => {
               <div className="flex space-x-3">
                 <button
                   onClick={() => setCurrentView('chat')}
-                  className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
+                  className="bg-blue-600/70 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
                 >
                   <ArrowLeft className="w-4 h-4" /><span>Back to Chat</span>
                 </button>
@@ -645,7 +737,7 @@ const App = () => {
     );
   }
 
-  // DOWNLOADS (Quick links that auto-prompt the chatbot)
+  // DOWNLOADS (clean, aligned cards)
   if (currentView === 'downloads' && user) {
     const links = [
       { key: 'haccp', label: 'HACCP plan template (by product/process)' },
@@ -656,6 +748,16 @@ const App = () => {
       { key: 'fssai', label: 'FSSAI label format checklist' },
       { key: 'eu_fic', label: 'EU FIC QUID & allergen table' }
     ];
+
+    const Card = ({ item }) => (
+      <button
+        key={item.key}
+        onClick={() => doQuickPrompt(item.key)}
+        className="text-left bg-white/10 hover:bg-white/15 text-white border border-white/15 rounded-xl p-4 transition h-24 flex items-center"
+      >
+        {item.label}
+      </button>
+    );
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 flex flex-col">
@@ -682,32 +784,15 @@ const App = () => {
         </div>
 
         <div className="flex-1 p-6">
-          <div className="max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {links.map(item => (
-              <button
-                key={item.key}
-                onClick={() => doQuickPrompt(item.key)}
-                className="text-left bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg p-4 transition"
-              >
-                {item.label}
-              </button>
-            ))}
+          <div className="max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {links.map((item) => <Card key={item.key} item={item} />)}
           </div>
 
-          {templateContentHTML && (
-            <div className="max-w-3xl mx-auto mt-6 bg-white/10 border border-white/20 rounded-lg p-4 text-gray-100">
-              <h4 className="text-white font-semibold mb-2">Latest Generated Template</h4>
-              <div className="flex flex-wrap gap-2 mb-3">
-                <button className="bg-blue-600 text-white hover:bg-blue-500 px-3 py-2 rounded" onClick={() => downloadContent('doc')}>Export as Word (.doc)</button>
-                <button className="bg-blue-600 text-white hover:bg-blue-500 px-3 py-2 rounded" onClick={() => downloadContent('pdf')}>Export as PDF</button>
-                <button className="bg-blue-600 text-white hover:bg-blue-500 px-3 py-2 rounded" onClick={() => downloadContent('txt')}>Export as TXT</button>
-                <button className="bg-blue-600 text-white hover:bg-blue-500 px-3 py-2 rounded" onClick={() => downloadContent('json')}>Export as JSON</button>
-                <button className="bg-blue-600 text-white hover:bg-blue-500 px-3 py-2 rounded" onClick={() => downloadContent('yaml')}>Export as YAML</button>
-                <button className="bg-blue-600 text-white hover:bg-blue-500 px-3 py-2 rounded" onClick={() => downloadContent('csv')}>Export as CSV</button>
-              </div>
-              <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: templateContentHTML }} />
-            </div>
-          )}
+          {/* Visible disclaimer/footer */}
+          <div className="max-w-3xl mx-auto mt-6 p-3 bg-white/10 border border-white/20 rounded text-gray-200 text-xs">
+            <div className="font-medium">{COPYRIGHT}</div>
+            <div>{DISCLAIMER}</div>
+          </div>
         </div>
       </div>
     );
@@ -720,7 +805,7 @@ const App = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 flex flex-col">
         {/* Header */}
-        <div className="bg-white/10 backdrop-blur-lg border-b border-white/20 px-6 py-4 flex justify-between items-center">
+        <div className="relative bg-white/10 backdrop-blur-lg border-b border-white/20 px-6 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3">
             <div className="bg-gradient-to-r from-blue-400 to-purple-500 w-10 h-10 rounded-full flex items-center justify-center">
               <Shield className="w-5 h-5 text-white" />
@@ -732,55 +817,69 @@ const App = () => {
           </div>
 
           <div className="flex items-center space-x-2">
+            {/* User menu trigger */}
             <button
-              onClick={() => setCurrentView('downloads')}
-              className="bg-blue-600 text-white px-3 py-1 rounded-lg transition-colors text-sm hover:bg-blue-500"
-              title="Open Downloads"
+              id="user-menu-trigger"
+              onClick={() => setUserMenuOpen((v) => !v)}
+              className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center gap-2"
+              title="Account"
             >
-              <span className="inline-flex items-center gap-1">
-                <Download className="w-4 h-4" /> Downloads
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded ${getRoleColor(user.role)} shadow`}>
+                {getRoleIcon(user.role)}
+                <span className="text-xs font-bold tracking-wide">{user.role.toUpperCase()}</span>
               </span>
+              <span className="ml-1">{user.name}</span>
+              <ChevronDown className="w-4 h-4 opacity-80" />
             </button>
 
-            <div className="text-right">
-              <p className="text-white font-medium flex items-center justify-end gap-2">
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded ${getRoleColor(user.role)} shadow`}>
-                  {getRoleIcon(user.role)}
-                  <span className="text-xs font-bold tracking-wide">{user.role.toUpperCase()}</span>
-                </span>
-                <span className="ml-1">{user.name}</span>
-              </p>
-              <p className="text-gray-200 text-sm">
-                {userLimits.maxQueries === -1
-                  ? `${user.queriesUsed} queries used`
-                  : `${user.queriesUsed}/${userLimits.maxQueries} queries used`}
-              </p>
-            </div>
-
-            {userLimits.canManageUsers && (
-              <button
-                onClick={() => setCurrentView('admin')}
-                className="bg-red-600 text-white px-3 py-1 rounded-lg transition-colors text-sm hover:bg-red-500"
+            {userMenuOpen && (
+              <div
+                id="user-menu-dropdown"
+                className="absolute right-6 top-16 w-64 bg-gray-900/95 border border-white/15 rounded-xl shadow-lg text-gray-100 z-50"
               >
-                <span className="inline-flex items-center gap-1"><Settings className="w-4 h-4" /> Admin</span>
-              </button>
+                <div className="px-4 py-3 border-b border-white/10">
+                  <div className="text-sm">Signed in as</div>
+                  <div className="font-semibold break-all">{user.email}</div>
+                </div>
+                <div className="px-4 py-3 border-b border-white/10">
+                  <div className="text-sm">Current:</div>
+                  <div className="mt-1 inline-flex items-center gap-2 px-2 py-0.5 rounded text-xs font-bold tracking-wide bg-green-500 text-black">
+                    {user.role.toUpperCase()}
+                  </div>
+                  <div className="text-xs mt-2 text-gray-300">
+                    Queries used: {userLimits.maxQueries === -1 ? `${user.queriesUsed} (unlimited plan)` : `${user.queriesUsed}/${userLimits.maxQueries}`}
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setCurrentView('downloads'); setUserMenuOpen(false); }}
+                  className="w-full text-left px-4 py-3 hover:bg-white/10"
+                >
+                  Downloads
+                </button>
+                {user.role === 'explorer' && (
+                  <button
+                    onClick={handleUpgradeRequest}
+                    className="w-full text-left px-4 py-3 hover:bg-white/10"
+                  >
+                    Upgrade to Pro
+                  </button>
+                )}
+                <button
+                  onClick={() => { setCurrentView('admin'); setUserMenuOpen(false); }}
+                  className="w-full text-left px-4 py-3 hover:bg-white/10"
+                  disabled={!userLimits.canManageUsers}
+                  style={{ opacity: userLimits.canManageUsers ? 1 : 0.5, cursor: userLimits.canManageUsers ? 'pointer' : 'not-allowed' }}
+                >
+                  Admin Dashboard
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-left px-4 py-3 hover:bg-white/10 text-red-300"
+                >
+                  Sign out
+                </button>
+              </div>
             )}
-
-            {user.role === 'explorer' && (
-              <button
-                onClick={handleUpgradeRequest}
-                className="bg-yellow-400 text-black px-3 py-1 rounded-lg transition-colors text-sm hover:bg-yellow-300"
-              >
-                <span className="inline-flex items-center gap-1"><Crown className="w-4 h-4" /> Upgrade</span>
-              </button>
-            )}
-
-            <button
-              onClick={handleLogout}
-              className="bg-red-600/70 hover:bg-red-600 text-white p-2 rounded-lg transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
           </div>
         </div>
 
@@ -867,22 +966,13 @@ const App = () => {
               </div>
             </div>
           )}
-        </div>
 
-        {/* Query Limit Warning */}
-        {user.role === 'explorer' && userLimits.maxQueries !== -1 && user.queriesUsed >= userLimits.maxQueries - 1 && (
-          <div className="mx-6 mb-4 p-3 bg-orange-500 text-black border border-orange-400/60 rounded-lg flex items-center space-x-2">
-            <AlertCircle className="w-5 h-5" />
-            <p className="text-sm">
-              {user.queriesUsed >= userLimits.maxQueries
-                ? 'You have reached your query limit. Upgrade to Pro for unlimited access!'
-                : `You have ${userLimits.maxQueries - user.queriesUsed} queries remaining.`}
-            </p>
-            {user.queriesUsed >= userLimits.maxQueries && (
-              <button onClick={handleUpgradeRequest} className="bg-yellow-300 hover:bg-yellow-200 text-black px-3 py-1 rounded text-sm ml-2">Upgrade Now</button>
-            )}
+          {/* Visible disclaimer/footer */}
+          <div className="mt-4 p-3 bg-white/10 border border-white/20 rounded text-gray-200 text-xs">
+            <div className="font-medium">{COPYRIGHT}</div>
+            <div>{DISCLAIMER}</div>
           </div>
-        )}
+        </div>
 
         {/* Input Area */}
         <div className="bg-white/10 backdrop-blur-lg border-t border-white/20 p-6">
@@ -894,11 +984,11 @@ const App = () => {
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               placeholder="Ask about food labeling, allergens, HACCP, FSSAI, EU FIC... (type 'menu' for templates)"
               className="flex-1 bg-white/10 border border-white/30 rounded-lg px-4 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              disabled={isLoading || (userLimits.maxQueries !== -1 && user.queriesUsed >= userLimits.maxQueries)}
+              disabled={isLoading || (getUserLimits(user.role).maxQueries !== -1 && user.queriesUsed >= getUserLimits(user.role).maxQueries)}
             />
             <button
               onClick={sendMessage}
-              disabled={isLoading || !inputMessage.trim() || (userLimits.maxQueries !== -1 && user.queriesUsed >= userLimits.maxQueries)}
+              disabled={isLoading || !inputMessage.trim() || (getUserLimits(user.role).maxQueries !== -1 && user.queriesUsed >= getUserLimits(user.role).maxQueries)}
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:from-gray-500 disabled:to-gray-600 text-white p-3 rounded-lg transition-all duration-200"
             >
               <Send className="w-5 h-5" />
