@@ -3,11 +3,6 @@ import { User, Lock, Mail, MessageCircle, Send, LogOut, Crown, AlertCircle, Shie
 
 const MAX_QUERIES_EXPLORER = 5;
 
-// 🔧 Backend base URL (set REACT_APP_API_BASE in your deploy env)
-// Example: https://myapp-backend.onrender.com
-// If you host API on same origin (Next.js / Vercel), set to '' and use same-origin fetch.
-const API_BASE = process.env.REACT_APP_API_BASE || 'https://YOUR-BACKEND-URL';
-
 // Security: Input sanitization helper
 const sanitizeInput = (input) => {
   if (typeof input !== 'string') return '';
@@ -249,15 +244,14 @@ const App = () => {
         { role: 'user', content: sanitizedMessage }
       ];
 
-      const resp = await fetch(`${API_BASE}/api/chat`, {
+      // Same-origin call to Vercel API route
+      const resp = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: oaMessages })
       });
 
-      if (!resp.ok) {
-        throw new Error(`API ${resp.status}`);
-      }
+      if (!resp.ok) throw new Error(`API ${resp.status}`);
 
       const data = await resp.json();
       const assistantText = data.reply || 'Sorry, I could not generate a response.';
@@ -437,7 +431,7 @@ const App = () => {
             {/* Pricing */}
             <div className="bg-blue-500/20 border border-blue-400/30 rounded-lg p-4 text-center">
               <h3 className="text-blue-400 font-semibold mb-2">Pro Plan Pricing</h3>
-              <div className="text-3xl font-bold text-white mb-1">$29<span className="text-lg text-gray-300">/month</span></div>
+              <div className="text-3xl font-bold text白 mb-1">$29<span className="text-lg text-gray-300">/month</span></div>
               <p className="text-gray-300 text-sm">Cancel anytime</p>
             </div>
 
@@ -487,10 +481,10 @@ const App = () => {
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-3">
                 <div className="bg-gradient-to-r from-red-400 to-pink-500 w-12 h-12 rounded-full flex items-center justify-center">
-                  <Settings className="w-6 h-6 text-white" />
+                  <Settings className="w-6 h-6 text白" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
+                  <h1 className="text-2xl font-bold text白">Admin Dashboard</h1>
                   <p className="text-gray-300">User Management & System Control</p>
                 </div>
               </div>
@@ -514,7 +508,7 @@ const App = () => {
 
           {/* User Management */}
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
-            <h2 className="text-xl font-semibold text-white mb-6 flex items-center">
+            <h2 className="text-xl font-semibold text白 mb-6 flex items-center">
               <Users className="w-5 h-5 mr-2" />
               User Management
             </h2>
@@ -524,7 +518,7 @@ const App = () => {
                 <div key={dbUser.id} className="bg-white/5 p-4 rounded-lg border border-white/10">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="text-white font-medium">{dbUser.name}</h3>
+                      <h3 className="text白 font-medium">{dbUser.name}</h3>
                       <p className="text-gray-400 text-sm">{dbUser.email}</p>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded ${getRoleColor(dbUser.role)} bg-white/10`}>
@@ -543,7 +537,7 @@ const App = () => {
                   </div>
                   
                   <div className="space-y-2">
-                    <p className="text-white text-sm font-medium">Change Role:</p>
+                    <p className="text白 text-sm font-medium">Change Role:</p>
                     <div className="flex space-x-1">
                       <button
                         onClick={() => updateUserRole(dbUser.id, 'explorer')}
@@ -599,17 +593,17 @@ const App = () => {
         <div className="bg-white/10 backdrop-blur-lg border-b border-white/20 px-6 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3">
             <div className="bg-gradient-to-r from-blue-400 to-purple-500 w-10 h-10 rounded-full flex items-center justify-center">
-              <Shield className="w-5 h-5 text-white" />
+              <Shield className="w-5 h-5 text白" />
             </div>
             <div>
-              <h1 className="text-white font-semibold">Food Compliance Copilot</h1>
+              <h1 className="text白 font-semibold">Food Compliance Copilot</h1>
               <p className="text-gray-300 text-sm">AI-Powered Regulatory Guidance</p>
             </div>
           </div>
 
           <div className="flex items-center space-x-4">
             <div className="text-right">
-              <p className="text-white font-medium flex items-center">
+              <p className="text白 font-medium flex items-center">
                 <span className={getRoleColor(user.role)}>{getRoleIcon(user.role)}</span>
                 <span className="ml-1">{user.name}</span>
                 <span className={`ml-2 text-xs ${getRoleColor(user.role)}`}>
@@ -659,9 +653,9 @@ const App = () => {
           {chatMessages.length === 0 && (
             <div className="text-center py-12">
               <div className="bg-gradient-to-r from-blue-400 to-purple-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MessageCircle className="w-8 h-8 text-white" />
+                <MessageCircle className="w-8 h-8 text白" />
               </div>
-              <h3 className="text-white text-xl font-semibold mb-2">Welcome to Food Compliance Copilot</h3>
+              <h3 className="text白 text-xl font-semibold mb-2">Welcome to Food Compliance Copilot</h3>
               <p className="text-gray-300 max-w-md mx-auto">
                 Ask anything about FDA, FSMA, HACCP, FSSAI, EU FIC, Codex, allergens, and labeling.
               </p>
@@ -673,7 +667,7 @@ const App = () => {
               <div
                 className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                   message.type === 'user'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-blue-600 text白'
                     : 'bg-white/10 backdrop-blur-sm text-gray-100 border border-white/20'
                 }`}
               >
@@ -746,20 +740,20 @@ const App = () => {
               type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={(e) => {
+              onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
                   sendMessage();
                 }
               }}
               placeholder="Ask about food labeling, allergens, HACCP, FSSAI, EU FIC..."
-              className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text白 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading || (userLimits.maxQueries !== -1 && user.queriesUsed >= userLimits.maxQueries)}
             />
             <button
               onClick={sendMessage}
               disabled={isLoading || !inputMessage.trim() || (userLimits.maxQueries !== -1 && user.queriesUsed >= userLimits.maxQueries)}
-              className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-500 disabled:to-gray-600 text-white p-3 rounded-lg transition-all duration-200"
+              className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-500 disabled:to-gray-600 text白 p-3 rounded-lg transition-all duration-200"
             >
               <Send className="w-5 h-5" />
             </button>
