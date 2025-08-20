@@ -3,6 +3,11 @@ import { User, Lock, Mail, MessageCircle, Send, LogOut, Crown, AlertCircle, Shie
 
 const MAX_QUERIES_EXPLORER = 5;
 
+// 🔧 Backend base URL (set REACT_APP_API_BASE in your deploy env)
+// Example: https://myapp-backend.onrender.com
+// If you host API on same origin (Next.js / Vercel), set to '' and use same-origin fetch.
+const API_BASE = process.env.REACT_APP_API_BASE || 'https://YOUR-BACKEND-URL';
+
 // Security: Input sanitization helper
 const sanitizeInput = (input) => {
   if (typeof input !== 'string') return '';
@@ -235,23 +240,33 @@ const App = () => {
     setInputMessage('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      const responses = [
-        'Based on FICA-FDA regulations, this requires documentation of compliance procedures and thorough validation protocols.',
-        'According to current FDA guidelines, you need to ensure proper validation protocols are implemented with detailed documentation.',
-        'The FICA compliance framework suggests implementing robust security measures with regular auditing and monitoring.',
-        'For regulatory compliance, please consider comprehensive documentation requirements and staff training programs.',
-        'FDA regulations require systematic approach to quality management and continuous monitoring of compliance metrics.'
+      // Build OpenAI-style messages from existing chat, plus this new message
+      const oaMessages = [
+        ...chatMessages.map(m => ({
+          role: m.type === 'user' ? 'user' : 'assistant',
+          content: m.content
+        })),
+        { role: 'user', content: sanitizedMessage }
       ];
-      
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-      setChatMessages(prev => [...prev, { type: 'bot', content: randomResponse }]);
+
+      const resp = await fetch(`${API_BASE}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: oaMessages })
+      });
+
+      if (!resp.ok) {
+        throw new Error(`API ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      const assistantText = data.reply || 'Sorry, I could not generate a response.';
+
+      setChatMessages(prev => [...prev, { type: 'bot', content: assistantText }]);
 
       // Update query count
       const updatedUser = { ...user, queriesUsed: user.queriesUsed + 1 };
       setUser(updatedUser);
-      
       setUserDatabase(prev => prev.map(u => 
         u.id === user.id ? updatedUser : u
       ));
@@ -294,7 +309,7 @@ const App = () => {
             <div className="bg-gradient-to-r from-blue-400 to-purple-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
               <Shield className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">FICA-FDA Compliance</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">Food Compliance Copilot</h1>
             <p className="text-gray-300">AI-Powered Compliance Assistant</p>
           </div>
 
@@ -587,7 +602,7 @@ const App = () => {
               <Shield className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-white font-semibold">FICA-FDA Compliance Assistant</h1>
+              <h1 className="text-white font-semibold">Food Compliance Copilot</h1>
               <p className="text-gray-300 text-sm">AI-Powered Regulatory Guidance</p>
             </div>
           </div>
@@ -646,9 +661,9 @@ const App = () => {
               <div className="bg-gradient-to-r from-blue-400 to-purple-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <MessageCircle className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-white text-xl font-semibold mb-2">Welcome to FICA-FDA Compliance Assistant</h3>
+              <h3 className="text-white text-xl font-semibold mb-2">Welcome to Food Compliance Copilot</h3>
               <p className="text-gray-300 max-w-md mx-auto">
-                Ask me anything about FICA-FDA compliance, regulatory requirements, or related guidelines.
+                Ask anything about FDA, FSMA, HACCP, FSSAI, EU FIC, Codex, allergens, and labeling.
               </p>
             </div>
           )}
@@ -737,7 +752,7 @@ const App = () => {
                   sendMessage();
                 }
               }}
-              placeholder="Ask about FICA-FDA compliance..."
+              placeholder="Ask about food labeling, allergens, HACCP, FSSAI, EU FIC..."
               className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading || (userLimits.maxQueries !== -1 && user.queriesUsed >= userLimits.maxQueries)}
             />
