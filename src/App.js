@@ -812,12 +812,14 @@ const App = () => {
           </div>
 
           {/* Footer disclaimer visible here too */}
-          <div className="max-w-3xl mx-auto mt-6 p-3 bg-white/10 border border-white/20 rounded text-gray-200 text-xs">
-            <div className="font-medium">{COPYRIGHT}</div>
-            <div>{DISCLAIMER}</div>
+          <div className="w-full mt-3 p-3 bg-white/10 border border-white/20 rounded-lg text-gray-300 text-xs">
+            <div className="font-medium">© 2025 Food Compliance Copilot. All rights reserved.</div>
+            <div>
+              AI-generated compliance guidance. Verify with official regulations and qualified professionals before final decisions.
+              Not legal advice. Contact: themastyogi@gmail.com
+            </div>
           </div>
-        </div>
-      </div>
+        
     );
   }
 
