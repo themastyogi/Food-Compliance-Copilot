@@ -1,5 +1,4 @@
-// /api/chat.js — Vercel Serverless Function (Node runtime)
-import OpenAI from 'openai';
+// /api/chat.js — Vercel Serverless Function (CommonJS, no SDK)
 
 const SYSTEM_PROMPT = `
 You are "Food Compliance Copilot", a food compliance advisor for global food safety and labeling rules (FDA, FSMA, HACCP, FSSAI, EU FIC, Codex).
@@ -11,25 +10,30 @@ Always append:
 "Contact: themastyogi@gmail.com"
 `;
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-export default async function handler(req, res) {
-  // CORS (safe to keep; not required for same-origin)
+module.exports = async (req, res) => {
+  // CORS (safe even for same-origin)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    if (!process.env.OPENAI_API_KEY) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
       return res.status(500).json({ error: 'OPENAI_API_KEY not configured' });
     }
 
-    // Support both { messages } (new) and { message, user_role } (old)
-    const body = req.body || {};
-    let { messages } = body;
+    // Parse body defensively
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch { body = {}; }
+    }
+    body = body || {};
 
+    // Support { messages } or { message }
+    let { messages } = body;
     if (!messages && body.message) {
       const single = String(body.message || '').trim();
       if (!single) return res.status(400).json({ error: 'Message required' });
@@ -40,23 +44,34 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'messages array required' });
     }
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      temperature: 0.2,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        ...messages
-      ]
+    // Call OpenAI HTTP API directly (no SDK)
+    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',       // change if your account lacks access
+        temperature: 0.2,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          ...messages
+        ]
+      })
     });
 
-    const reply =
-      completion.choices?.[0]?.message?.content ||
-      'Sorry, I could not generate a response.';
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => '');
+      console.error('OpenAI HTTP error:', resp.status, errText);
+      return res.status(500).json({ error: 'OpenAI error', details: errText });
+    }
 
-    // Response shape expected by your updated App.js
+    const data = await resp.json();
+    const reply = data?.choices?.[0]?.message?.content || 'Sorry, I could not generate a response.';
     return res.status(200).json({ reply });
   } catch (err) {
-    console.error('OpenAI error:', err?.response?.data || err);
+    console.error('Server error:', err?.message || err);
     return res.status(500).json({ error: 'Service temporarily unavailable' });
   }
-}
+};
