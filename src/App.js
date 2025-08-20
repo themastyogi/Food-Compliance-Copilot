@@ -250,9 +250,12 @@ const App = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: oaMessages })
       });
-
-      if (!resp.ok) throw new Error(`API ${resp.status}`);
-
+            // 👇 Add this to surface backend errors
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => '');
+        console.error('API /api/chat error:', resp.status, errText);
+        throw new Error(`API ${resp.status}`);
+      }
       const data = await resp.json();
       const assistantText = data.reply || 'Sorry, I could not generate a response.';
 
