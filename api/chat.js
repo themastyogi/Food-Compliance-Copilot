@@ -1,4 +1,4 @@
-// /api/chat.js — Vercel Serverless Function (CommonJS, no SDK)
+// /api/chat.js — Vercel Serverless Function (Node runtime, no SDK)
 
 const SYSTEM_PROMPT = `
 You are "Food Compliance Copilot", a food compliance advisor for global food safety and labeling rules (FDA, FSMA, HACCP, FSSAI, EU FIC, Codex).
@@ -11,7 +11,7 @@ Always append:
 `;
 
 module.exports = async (req, res) => {
-  // CORS (safe even for same-origin)
+  // CORS (ok for same-origin)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -21,30 +21,27 @@ module.exports = async (req, res) => {
 
   try {
     const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'OPENAI_API_KEY not configured' });
-    }
+    if (!apiKey) return res.status(500).json({ error: 'OPENAI_API_KEY not configured' });
 
-    // Parse body defensively
+    // Defensive body parsing
     let body = req.body;
     if (typeof body === 'string') {
       try { body = JSON.parse(body); } catch { body = {}; }
     }
     body = body || {};
 
-    // Support { messages } or { message }
+    // Accept { messages } or { message }
     let { messages } = body;
     if (!messages && body.message) {
       const single = String(body.message || '').trim();
       if (!single) return res.status(400).json({ error: 'Message required' });
       messages = [{ role: 'user', content: single }];
     }
-
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'messages array required' });
     }
 
-    // Call OpenAI HTTP API directly (no SDK)
+    // Use global fetch (Node 18/20). If you MUST support Node 16, polyfill below.
     const resp = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -52,12 +49,9 @@ module.exports = async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',       // change if your account lacks access
+        model: 'gpt-4o-mini', // change if your account lacks access
         temperature: 0.2,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          ...messages
-        ]
+        messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages]
       })
     });
 
