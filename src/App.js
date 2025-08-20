@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   User, Lock, Mail, MessageCircle, Send, LogOut, Crown,
-  AlertCircle, Shield, Settings, Users, ArrowLeft, CreditCard, Download, ChevronDown
+  AlertCircle, Shield, Settings, Users, ArrowLeft, CreditCard,
+  Download, ChevronDown
 } from 'lucide-react';
 
 const MAX_QUERIES_EXPLORER = 5;
 
-// Toggle panels preserved but hidden
+// Toggle (kept but hidden)
 const SHOW_DEMO_INFO = false;
 const SHOW_SECONDARY_IMAGE = false;
 
@@ -15,19 +16,57 @@ const COPYRIGHT = '© 2025 Food Compliance Copilot. All rights reserved.';
 const DISCLAIMER =
   'AI-generated compliance guidance. Verify with official regulations and qualified professionals before final decisions. Not legal advice. Contact: themastyogi@gmail.com';
 
-// Security: Input sanitization helper
+// Security helpers
 const sanitizeInput = (input) => {
   if (typeof input !== 'string') return '';
   return input.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '').trim();
 };
-
-// Security: Simple email validation
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 // Utils
 const escapeHtml = (str) =>
   String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const stripTags = (html) => String(html).replace(/<[^>]+>/g, '');
+
+// Minimal Markdown → HTML for readable bubbles
+const mdToHTML = (text) => {
+  if (!text) return '';
+  let s = String(text)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // Bold **text**
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+  const lines = s.split(/\r?\n/);
+  const out = [];
+  let inOl = false, inUl = false;
+
+  const closeLists = () => {
+    if (inOl) { out.push('</ol>'); inOl = false; }
+    if (inUl) { out.push('</ul>'); inUl = false; }
+  };
+
+  for (const line of lines) {
+    const olMatch = line.match(/^\s*\d+\.\s+(.*)/);
+    const ulMatch = line.match(/^\s*[-*]\s+(.*)/);
+
+    if (olMatch) {
+      if (!inOl) { closeLists(); out.push('<ol>'); inOl = true; }
+      out.push(`<li>${olMatch[1]}</li>`);
+    } else if (ulMatch) {
+      if (!inUl) { closeLists(); out.push('<ul>'); inUl = true; }
+      out.push(`<li>${ulMatch[1]}</li>`);
+    } else if (line.trim() === '') {
+      closeLists();
+      out.push('<br/>');
+    } else {
+      closeLists();
+      out.push(`<p>${line}</p>`);
+    }
+  }
+  closeLists();
+  return out.join('\n');
+};
 
 const App = () => {
   const [currentView, setCurrentView] = useState('login'); // login, chat, admin, upgrade, downloads
@@ -40,24 +79,20 @@ const App = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showSignup, setShowSignup] = useState(true); // default to Sign Up
-
-  // Forgot password state
+  const [showSignup, setShowSignup] = useState(true); // default: Sign Up first
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotNewPassword, setForgotNewPassword] = useState('');
-
-  // User menu dropdown
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  // In-memory DB (persisted)
+  // Demo DB (persisted)
   const [userDatabase, setUserDatabase] = useState([
     { id: 1, email: 'admin@example.com', password: 'admin123', name: 'Admin User', role: 'admin', queriesUsed: 0, createdAt: new Date().toISOString() },
     { id: 2, email: 'explorer@example.com', password: 'explorer123', name: 'Explorer User', role: 'explorer', queriesUsed: 2, createdAt: new Date().toISOString() },
     { id: 3, email: 'pro@example.com', password: 'pro123', name: 'Pro User', role: 'pro', queriesUsed: 15, createdAt: new Date().toISOString() }
   ]);
 
-  // Menu / Templates state
+  // Menu / Templates
   const [menuMode, setMenuMode] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [templateContentHTML, setTemplateContentHTML] = useState(''); // store HTML
@@ -179,13 +214,11 @@ const App = () => {
     setLoginEmail('');
     setLoginPassword('');
   };
-
   const submitForgotPassword = () => {
     if (!isValidEmail(forgotEmail)) { alert('Enter a valid email'); return; }
     if (!forgotNewPassword || forgotNewPassword.length < 6) { alert('New password must be at least 6 characters'); return; }
     const exists = userDatabase.find(u => u.email === forgotEmail.toLowerCase());
     if (!exists) { alert('No user found with this email'); return; }
-    // Update password in DB
     const updatedDb = userDatabase.map(u =>
       u.email === forgotEmail.toLowerCase() ? { ...u, password: forgotNewPassword } : u
     );
@@ -230,7 +263,7 @@ const App = () => {
     alert(`User role updated to ${newRole}`);
   };
 
-  // ===== Quick prompt catalog (Downloads) & Menu =====
+  // ===== Prompt catalog & template generation =====
   const TEMPLATE_PROMPTS = {
     haccp: "Generate a HACCP plan template (by product/process). Include process steps, hazards, CCPs, critical limits, monitoring, verification, corrective actions.",
     pcqi: "Generate a FSMA Preventive Controls (PCQI) plan outline. Include hazard analysis, process/env/allergen/supply-chain preventive controls, monitoring, verification, corrective actions, recall plan, and records.",
@@ -263,9 +296,7 @@ const App = () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        messages: [
-          { role: 'user', content: promptToHTMLInstruction(instruction) }
-        ]
+        messages: [{ role: 'user', content: promptToHTMLInstruction(instruction) }]
       })
     });
     if (!resp.ok) {
@@ -295,7 +326,6 @@ const App = () => {
     }
   };
 
-  // Downloads screen quick actions
   const doQuickPrompt = async (key) => {
     setCurrentView('chat');
     await handleSelectTemplate(key);
@@ -326,7 +356,7 @@ const App = () => {
         break;
       }
       case 'pdf': {
-        // Print-ready HTML (user can Save as PDF)
+        // Print-ready HTML (user chooses Save as PDF)
         const win = window.open('', '_blank', 'noopener,noreferrer');
         if (!win) return;
         win.document.open();
@@ -415,7 +445,8 @@ const App = () => {
 
       const data = await resp.json();
       const assistantText = data.reply || 'Sorry, I could not generate a response.';
-      setChatMessages(prev => [...prev, { type: 'bot', content: assistantText }]);
+      const html = mdToHTML(assistantText);               // ← convert to readable HTML
+      setChatMessages(prev => [...prev, { type: 'bot-html', html }]);
 
       const updatedUser = { ...user, queriesUsed: user.queriesUsed + 1 };
       setUser(updatedUser);
@@ -435,7 +466,6 @@ const App = () => {
       default: return 'bg-gray-500 text-white';
     }
   };
-
   const getRoleIcon = (role) => {
     switch (role) {
       case 'admin': return <Settings className="w-4 h-4" />;
@@ -460,7 +490,7 @@ const App = () => {
             <p className="text-gray-200">AI-Powered Compliance Assistant</p>
           </div>
 
-          {/* Forgot Password small card */}
+          {/* Forgot Password card */}
           {showForgot ? (
             <div className="space-y-4">
               <div className="relative">
@@ -513,7 +543,6 @@ const App = () => {
                 />
               </div>
             )}
-
             <div className="relative">
               <Mail className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -525,7 +554,6 @@ const App = () => {
                 className="w-full bg-white/10 border border-white/30 rounded-lg px-12 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
             </div>
-
             <div className="relative">
               <Lock className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -537,7 +565,6 @@ const App = () => {
                 className="w-full bg-white/10 border border-white/30 rounded-lg px-12 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
             </div>
-
             <button
               onClick={showSignup ? handleSignup : handleLogin}
               disabled={isLoading}
@@ -545,13 +572,9 @@ const App = () => {
             >
               {isLoading ? 'Processing...' : (showSignup ? 'Create Explorer Account' : 'Sign In')}
             </button>
-
             {!showSignup && !showForgot && (
               <div className="text-right">
-                <button
-                  className="text-blue-300 hover:text-blue-200 text-sm underline"
-                  onClick={handleForgotPassword}
-                >
+                <button className="text-blue-300 hover:text-blue-200 text-sm underline" onClick={handleForgotPassword}>
                   Forgot password?
                 </button>
               </div>
@@ -586,7 +609,7 @@ const App = () => {
             </div>
           )}
 
-          {SHOW_SECONDARY_IMAGE && (<div className="mt-4 rounded-lg overflow-hidden">{/* hidden image section */}</div>)}
+          {SHOW_SECONDARY_IMAGE && (<div className="mt-4 rounded-lg overflow-hidden">{/* hidden image */}</div>)}
 
           <div className="mt-4 p-3 bg-green-500/20 rounded-lg border border-green-400/30">
             <p className="text-xs text-green-100"><strong>New users start as Explorer</strong> (5 free queries). Upgrade to Pro for unlimited queries. Admins can manage all users.</p>
@@ -737,7 +760,7 @@ const App = () => {
     );
   }
 
-  // DOWNLOADS (clean, aligned cards)
+  // DOWNLOADS (aligned cards)
   if (currentView === 'downloads' && user) {
     const links = [
       { key: 'haccp', label: 'HACCP plan template (by product/process)' },
@@ -788,7 +811,7 @@ const App = () => {
             {links.map((item) => <Card key={item.key} item={item} />)}
           </div>
 
-          {/* Visible disclaimer/footer */}
+          {/* Footer disclaimer visible here too */}
           <div className="max-w-3xl mx-auto mt-6 p-3 bg-white/10 border border-white/20 rounded text-gray-200 text-xs">
             <div className="font-medium">{COPYRIGHT}</div>
             <div>{DISCLAIMER}</div>
@@ -850,19 +873,9 @@ const App = () => {
                     Queries used: {userLimits.maxQueries === -1 ? `${user.queriesUsed} (unlimited plan)` : `${user.queriesUsed}/${userLimits.maxQueries}`}
                   </div>
                 </div>
-                <button
-                  onClick={() => { setCurrentView('downloads'); setUserMenuOpen(false); }}
-                  className="w-full text-left px-4 py-3 hover:bg-white/10"
-                >
-                  Downloads
-                </button>
+                <button onClick={() => { setCurrentView('downloads'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-white/10">Downloads</button>
                 {user.role === 'explorer' && (
-                  <button
-                    onClick={handleUpgradeRequest}
-                    className="w-full text-left px-4 py-3 hover:bg-white/10"
-                  >
-                    Upgrade to Pro
-                  </button>
+                  <button onClick={handleUpgradeRequest} className="w-full text-left px-4 py-3 hover:bg-white/10">Upgrade to Pro</button>
                 )}
                 <button
                   onClick={() => { setCurrentView('admin'); setUserMenuOpen(false); }}
@@ -872,12 +885,7 @@ const App = () => {
                 >
                   Admin Dashboard
                 </button>
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left px-4 py-3 hover:bg-white/10 text-red-300"
-                >
-                  Sign out
-                </button>
+                <button onClick={handleLogout} className="w-full text-left px-4 py-3 hover:bg-white/10 text-red-300">Sign out</button>
               </div>
             )}
           </div>
@@ -915,7 +923,7 @@ const App = () => {
             </div>
           )}
 
-          {/* Chat messages */}
+          {/* Messages */}
           {chatMessages.map((message, index) => (
             <div key={index} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
               {message.type === 'bot-html' ? (
@@ -937,7 +945,7 @@ const App = () => {
             </div>
           ))}
 
-          {/* Download options when template generated */}
+          {/* Template download bar */}
           {templateContentHTML && (
             <div className="bg-white/10 backdrop-blur-sm text-gray-100 border border-white/20 rounded-lg p-4">
               <h4 className="text-white font-semibold mb-2">Download Options</h4>
@@ -966,15 +974,9 @@ const App = () => {
               </div>
             </div>
           )}
-
-          {/* Visible disclaimer/footer */}
-          <div className="mt-4 p-3 bg-white/10 border border-white/20 rounded text-gray-200 text-xs">
-            <div className="font-medium">{COPYRIGHT}</div>
-            <div>{DISCLAIMER}</div>
-          </div>
         </div>
 
-        {/* Input Area */}
+        {/* Input Bar */}
         <div className="bg-white/10 backdrop-blur-lg border-t border-white/20 p-6">
           <div className="flex space-x-4">
             <input
@@ -993,6 +995,14 @@ const App = () => {
             >
               <Send className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+
+        {/* Disclaimer BELOW typing space */}
+        <div className="bg-transparent px-6 pb-6">
+          <div className="max-w-4xl mx-auto p-3 bg-white/10 border border-white/20 rounded text-gray-200 text-xs">
+            <div className="font-medium">{COPYRIGHT}</div>
+            <div>{DISCLAIMER}</div>
           </div>
         </div>
       </div>
