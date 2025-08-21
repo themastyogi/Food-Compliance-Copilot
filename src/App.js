@@ -978,40 +978,40 @@ const App = () => {
           )}
         </div>
 
-        {/* Input Bar */}
-        <div className="bg-white/10 backdrop-blur-lg border-t border-white/20 p-6">
-          <div className="flex space-x-4">
-            <input
-              type="text"
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              placeholder="Ask about food labeling, allergens, HACCP, FSSAI, EU FIC... (type 'menu' for templates)"
-              className="flex-1 bg-white/10 border border-white/30 rounded-lg px-4 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              disabled={isLoading || (getUserLimits(user.role).maxQueries !== -1 && user.queriesUsed >= getUserLimits(user.role).maxQueries)}
-            />
-            <button
-              onClick={sendMessage}
-              disabled={isLoading || !inputMessage.trim() || (getUserLimits(user.role).maxQueries !== -1 && user.queriesUsed >= getUserLimits(user.role).maxQueries)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:from-gray-500 disabled:to-gray-600 text-white p-3 rounded-lg transition-all duration-200"
-            >
-              <Send className="w-5 h-5" />
-            </button>
+    {/* Input Bar */}
+          <div className="bg-white/10 backdrop-blur-lg border-t border-white/20 p-6">
+            <div className="flex space-x-4">
+              <input
+                type="text"
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                placeholder="Ask about food labeling, allergens, HACCP, FSSAI, EU FIC... (type 'menu' for templates)"
+                className="flex-1 bg-white/10 border border-white/30 rounded-lg px-4 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                disabled={isLoading || (getUserLimits(user.role).maxQueries !== -1 && user.queriesUsed >= getUserLimits(user.role).maxQueries)}
+              />
+              <button
+                onClick={sendMessage}
+                disabled={isLoading || !inputMessage.trim() || (getUserLimits(user.role).maxQueries !== -1 && user.queriesUsed >= getUserLimits(user.role).maxQueries)}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:from-gray-500 disabled:to-gray-600 text-white p-3 rounded-lg transition-all duration-200"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+  
+          {/* Disclaimer BELOW typing space */}
+          <div className="bg-transparent px-6 pb-6">
+            <div className="max-w-4xl mx-auto p-3 bg-white/10 border border-white/20 rounded text-gray-200 text-xs">
+              <div className="font-medium">{COPYRIGHT}</div>
+              <div>{DISCLAIMER}</div>
+            </div>
           </div>
         </div>
-
-        {/* Disclaimer BELOW typing space */}
-        <div className="bg-transparent px-6 pb-6">
-          <div className="max-w-4xl mx-auto p-3 bg-white/10 border border-white/20 rounded text-gray-200 text-xs">
-            <div className="font-medium">{COPYRIGHT}</div>
-            <div>{DISCLAIMER}</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-};
-
-export default App;
+      );
+    }
+  
+    return null;
+  };
+  
+  export default App;
