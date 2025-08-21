@@ -538,7 +538,7 @@ const App = () => {
                   placeholder="Full Name"
                   value={signupName}
                   onChange={(e) => setSignupName(e.target.value)}
-                  maxLength="50"
+                  maxLength={50}
                   className="w-full bg-white/10 border border-white/30 rounded-lg px-12 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -550,7 +550,7 @@ const App = () => {
                 placeholder="Email Address"
                 value={showSignup ? signupEmail : loginEmail}
                 onChange={(e) => showSignup ? setSignupEmail(e.target.value) : setLoginEmail(e.target.value)}
-                maxLength="100"
+                maxLength={100}
                 className="w-full bg-white/10 border border-white/30 rounded-lg px-12 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
             </div>
@@ -561,7 +561,7 @@ const App = () => {
                 placeholder="Password"
                 value={showSignup ? signupPassword : loginPassword}
                 onChange={(e) => showSignup ? setSignupPassword(e.target.value) : setLoginPassword(e.target.value)}
-                maxLength="50"
+                maxLength={50}
                 className="w-full bg-white/10 border border-white/30 rounded-lg px-12 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
             </div>
@@ -774,7 +774,6 @@ const App = () => {
 
     const Card = ({ item }) => (
       <button
-        key={item.key}
         onClick={() => doQuickPrompt(item.key)}
         className="text-left bg-white/10 hover:bg-white/15 text-white border border-white/15 rounded-xl p-4 transition h-24 flex items-center"
       >
@@ -819,7 +818,8 @@ const App = () => {
               Not legal advice. Contact: themastyogi@gmail.com
             </div>
           </div>
-        
+        </div>
+      </div> {/* ← FIX: close the outer container */}
     );
   }
 
@@ -829,6 +829,14 @@ const App = () => {
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 flex flex-col">
+        {/* Tiny inline keyframes for typing dots */}
+        <style>{`
+          @keyframes typing-bounce {
+            0%, 80%, 100% { transform: translateY(0); opacity: .4; }
+            40% { transform: translateY(-4px); opacity: 1; }
+          }
+        `}</style>
+
         {/* Header */}
         <div className="relative bg-white/10 backdrop-blur-lg border-b border-white/20 px-6 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3">
@@ -978,40 +986,40 @@ const App = () => {
           )}
         </div>
 
-    {/* Input Bar */}
-          <div className="bg-white/10 backdrop-blur-lg border-t border-white/20 p-6">
-            <div className="flex space-x-4">
-              <input
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                placeholder="Ask about food labeling, allergens, HACCP, FSSAI, EU FIC... (type 'menu' for templates)"
-                className="flex-1 bg-white/10 border border-white/30 rounded-lg px-4 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                disabled={isLoading || (getUserLimits(user.role).maxQueries !== -1 && user.queriesUsed >= getUserLimits(user.role).maxQueries)}
-              />
-              <button
-                onClick={sendMessage}
-                disabled={isLoading || !inputMessage.trim() || (getUserLimits(user.role).maxQueries !== -1 && user.queriesUsed >= getUserLimits(user.role).maxQueries)}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:from-gray-500 disabled:to-gray-600 text-white p-3 rounded-lg transition-all duration-200"
-              >
-                <Send className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-  
-          {/* Disclaimer BELOW typing space */}
-          <div className="bg-transparent px-6 pb-6">
-            <div className="max-w-4xl mx-auto p-3 bg-white/10 border border-white/20 rounded text-gray-200 text-xs">
-              <div className="font-medium">{COPYRIGHT}</div>
-              <div>{DISCLAIMER}</div>
-            </div>
+        {/* Input Bar */}
+        <div className="bg-white/10 backdrop-blur-lg border-t border-white/20 p-6">
+          <div className="flex space-x-4">
+            <input
+              type="text"
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder="Ask about food labeling, allergens, HACCP, FSSAI, EU FIC... (type 'menu' for templates)"
+              className="flex-1 bg-white/10 border border-white/30 rounded-lg px-4 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              disabled={isLoading || (getUserLimits(user.role).maxQueries !== -1 && user.queriesUsed >= getUserLimits(user.role).maxQueries)}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={isLoading || !inputMessage.trim() || (getUserLimits(user.role).maxQueries !== -1 && user.queriesUsed >= getUserLimits(user.role).maxQueries)}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:from-gray-500 disabled:to-gray-600 text-white p-3 rounded-lg transition-all duration-200"
+            >
+              <Send className="w-5 h-5" />
+            </button>
           </div>
         </div>
-      );
-    }
-  
-    return null;
-  };
-  
-  export default App;
+
+        {/* Disclaimer BELOW typing space */}
+        <div className="bg-transparent px-6 pb-6">
+          <div className="max-w-4xl mx-auto p-3 bg-white/10 border border-white/20 rounded text-gray-200 text-xs">
+            <div className="font-medium">{COPYRIGHT}</div>
+            <div>{DISCLAIMER}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+export default App;
