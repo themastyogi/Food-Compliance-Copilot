@@ -1,15 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   User, Lock, Mail, MessageCircle, Send, LogOut, Crown,
-  AlertCircle, Shield, Settings, Users, ArrowLeft, CreditCard,
+  Shield, Settings, Users, ArrowLeft, CreditCard,
   Download, ChevronDown
 } from 'lucide-react';
 
 const MAX_QUERIES_EXPLORER = 5;
-
-// Toggle (kept but hidden)
-const SHOW_DEMO_INFO = false;
-const SHOW_SECONDARY_IMAGE = false;
 
 // Footer lines
 const COPYRIGHT = '© 2025 Food Compliance Copilot. All rights reserved.';
@@ -24,8 +20,6 @@ const sanitizeInput = (input) => {
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 // Utils
-const escapeHtml = (str) =>
-  String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const stripTags = (html) => String(html).replace(/<[^>]+>/g, '');
 
 // Minimal Markdown → HTML for readable bubbles
@@ -68,6 +62,99 @@ const mdToHTML = (text) => {
   return out.join('\n');
 };
 
+// ===== App Shell & helpers =====
+const AppHeader = ({
+  user,
+  onOpenDownloads,
+  onOpenAdmin,
+  onUpgrade,
+  onLogout,
+  userMenuOpen,
+  setUserMenuOpen,
+  getRoleColor,
+  getRoleIcon,
+}) => {
+  return (
+    <div className="sticky top-0 z-40 bg-white/10 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 py-3">
+      <div className="max-w-6xl mx-auto flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="bg-gradient-to-r from-blue-400 to-purple-500 w-10 h-10 rounded-full flex items-center justify-center">
+            <Shield className="w-5 h-5 text-white" aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-white font-extrabold leading-tight truncate">
+              Food Compliance Copilot
+            </h1>
+            <p className="text-gray-200 text-xs sm:text-sm">AI‑Powered Regulatory Guidance</p>
+          </div>
+        </div>
+
+        {user && (
+          <div className="relative">
+            <button
+              id="user-menu-trigger"
+              onClick={() => setUserMenuOpen(v => !v)}
+              className="px-2 sm:px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center gap-2"
+              aria-haspopup="menu"
+              aria-expanded={userMenuOpen}
+            >
+              <span className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded ${getRoleColor(user.role)} shadow`}>
+                {getRoleIcon(user.role)}
+                <span className="text-[10px] font-bold tracking-wide">{user.role?.toUpperCase()}</span>
+              </span>
+              <span className="max-w-[110px] sm:max-w-[200px] truncate">{user.name}</span>
+              <ChevronDown className="w-4 h-4 opacity-80" aria-hidden="true" />
+            </button>
+
+            {userMenuOpen && (
+              <div
+                id="user-menu-dropdown"
+                role="menu"
+                className="absolute right-0 mt-2 w-64 bg-gray-900/95 border border-white/15 rounded-xl shadow-lg text-gray-100 z-50 overflow-hidden"
+              >
+                <div className="px-4 py-3 border-b border-white/10">
+                  <div className="text-sm">Signed in as</div>
+                  <div className="font-semibold break-all">{user.email}</div>
+                </div>
+                <div className="px-4 py-3 border-b border-white/10">
+                  <div className="text-sm">Current:</div>
+                  <div className="mt-1 inline-flex items-center gap-2 px-2 py-0.5 rounded text-xs font-bold tracking-wide bg-green-500 text-black">
+                    {user.role?.toUpperCase()}
+                  </div>
+                  <div className="text-xs mt-2 text-gray-300">
+                    {user.role === 'pro' || user.role === 'admin'
+                      ? `Queries used: ${user.queriesUsed || 0} (unlimited plan)`
+                      : `Queries used: ${user.queriesUsed || 0}/${MAX_QUERIES_EXPLORER}`}
+                  </div>
+                </div>
+                <button onClick={() => { onOpenDownloads(); setUserMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-white/10">Downloads</button>
+                {user.role === 'explorer' && (
+                  <button onClick={() => { onUpgrade(); setUserMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-white/10">Upgrade to Pro</button>
+                )}
+                <button
+                  onClick={() => { onOpenAdmin(); setUserMenuOpen(false); }}
+                  className="w-full text-left px-4 py-3 hover:bg-white/10 disabled:opacity-50"
+                  disabled={!(user.role === 'admin')}
+                >
+                  Admin Dashboard
+                </button>
+                <button onClick={() => { onLogout(); setUserMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-white/10 text-red-300">Sign out</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const PageContainer = ({ children, gradient = 'from-gray-900 to-blue-900' }) => (
+  <div className={`min-h-screen bg-gradient-to-br ${gradient} flex flex-col`}>
+    {children}
+  </div>
+);
+
+// ===== Main App =====
 const App = () => {
   const [currentView, setCurrentView] = useState('login'); // login, chat, admin, upgrade, downloads
   const [user, setUser] = useState(null);
@@ -102,9 +189,8 @@ const App = () => {
     try {
       const response = await fetch('/api/auth/me', {
         method: 'GET',
-        credentials: 'include' // Include cookies for session
+        credentials: 'include'
       });
-      
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
@@ -112,7 +198,6 @@ const App = () => {
       }
     } catch (error) {
       console.error('Auth check failed:', error);
-      // User not logged in, stay on login page
     }
   };
 
@@ -139,7 +224,7 @@ const App = () => {
     }
   };
 
-  // ===== EFFECT: fetch users when entering Admin (hooks at top level only) =====
+  // ===== EFFECT: fetch users when entering Admin =====
   useEffect(() => {
     if (currentView === 'admin' && user && getUserLimits(user.role).canManageUsers) {
       fetchUsers();
@@ -180,17 +265,17 @@ const App = () => {
     } catch (error) {
       console.error('Signup error:', error);
       alert('Signup failed. Please try again.');
-    } finally { 
-      setIsLoading(false); 
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleLogin = async () => {
-    if (!loginEmail.trim() || !loginPassword.trim()) { 
-      alert('Please fill in all fields'); return; 
+    if (!loginEmail.trim() || !loginPassword.trim()) {
+      alert('Please fill in all fields'); return;
     }
-    if (!isValidEmail(loginEmail)) { 
-      alert('Please enter a valid email address'); return; 
+    if (!isValidEmail(loginEmail)) {
+      alert('Please enter a valid email address'); return;
     }
 
     setIsLoading(true);
@@ -217,8 +302,8 @@ const App = () => {
     } catch (error) {
       console.error('Login error:', error);
       alert('Login failed. Please try again.');
-    } finally { 
-      setIsLoading(false); 
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -230,11 +315,11 @@ const App = () => {
   };
 
   const submitForgotPassword = async () => {
-    if (!isValidEmail(forgotEmail)) { 
-      alert('Enter a valid email'); return; 
+    if (!isValidEmail(forgotEmail)) {
+      alert('Enter a valid email'); return;
     }
-    if (!forgotNewPassword || forgotNewPassword.length < 6) { 
-      alert('New password must be at least 6 characters'); return; 
+    if (!forgotNewPassword || forgotNewPassword.length < 6) {
+      alert('New password must be at least 6 characters'); return;
     }
 
     setIsLoading(true);
@@ -276,7 +361,7 @@ const App = () => {
     } catch (error) {
       console.error('Logout error:', error);
     }
-    
+
     // Clear local state
     setUser(null);
     setCurrentView('login');
@@ -288,9 +373,9 @@ const App = () => {
     setUserMenuOpen(false);
   };
 
-  const handleUpgradeRequest = () => { 
-    setCurrentView('upgrade'); 
-    setUserMenuOpen(false); 
+  const handleUpgradeRequest = () => {
+    setCurrentView('upgrade');
+    setUserMenuOpen(false);
   };
 
   const processUpgrade = async () => {
@@ -314,8 +399,8 @@ const App = () => {
     } catch (error) {
       console.error('Upgrade error:', error);
       alert('Upgrade failed. Please try again.');
-    } finally { 
-      setIsLoading(false); 
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -325,7 +410,7 @@ const App = () => {
       const response = await fetch('/api/users', {
         credentials: 'include'
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         setUserDatabase(data.users || []);
@@ -347,7 +432,6 @@ const App = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // Update local state
         setUserDatabase(prev => prev.map(u => (u.id === userId ? { ...u, role: newRole } : u)));
         if (user && user.id === userId) {
           setUser(prev => ({ ...prev, role: newRole }));
@@ -456,7 +540,6 @@ const App = () => {
         break;
       }
       case 'pdf': {
-        // Print-ready HTML (user chooses Save as PDF)
         const win = window.open('', '_blank', 'noopener,noreferrer');
         if (!win) return;
         win.document.open();
@@ -549,10 +632,7 @@ const App = () => {
       const html = mdToHTML(assistantText);
       setChatMessages(prev => [...prev, { type: 'bot-html', html }]);
 
-      // Update user query count on server
-      if (data.user) {
-        setUser(data.user);
-      }
+      if (data.user) setUser(data.user);
     } catch (err) {
       console.error('Chat error:', err);
       setChatMessages(prev => [...prev, { type: 'bot', content: 'Sorry, an error occurred. Please try again.' }]);
@@ -570,33 +650,31 @@ const App = () => {
   };
   const getRoleIcon = (role) => {
     switch (role) {
-      case 'admin': return <Settings className="w-4 h-4" />;
-      case 'pro': return <Crown className="w-4 h-4" />;
-      case 'explorer': return <User className="w-4 h-4" />;
-      default: return <User className="w-4 h-4" />;
+      case 'admin': return <Settings className="w-4 h-4" aria-hidden="true" />;
+      case 'pro': return <Crown className="w-4 h-4" aria-hidden="true" />;
+      case 'explorer': return <User className="w-4 h-4" aria-hidden="true" />;
+      default: return <User className="w-4 h-4" aria-hidden="true" />;
     }
   };
 
-  // ===== VIEWS =====
+  // ===== Views =====
 
-  // LOGIN/SIGNUP
-  if (currentView === 'login') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-800 flex items-center justify-center p-4">
+  const LoginView = () => (
+    <PageContainer gradient="from-blue-900 via-purple-900 to-indigo-800">
+      <div className="flex-1 flex items-center justify-center p-4">
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 w-full max-w-md border border-white/20 shadow-2xl">
           <div className="text-center mb-8">
             <div className="bg-gradient-to-r from-blue-400 to-purple-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Shield className="w-8 h-8 text-white" />
+              <Shield className="w-8 h-8 text-white" aria-hidden="true" />
             </div>
             <h1 className="text-3xl font-extrabold text-white mb-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">Food Compliance Copilot</h1>
-            <p className="text-gray-200">AI-Powered Compliance Assistant</p>
+            <p className="text-gray-200">AI‑Powered Compliance Assistant</p>
           </div>
 
-          {/* Forgot Password card */}
           {showForgot ? (
             <div className="space-y-4">
               <div className="relative">
-                <Mail className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Mail className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
                 <input
                   type="email"
                   placeholder="Registered Email"
@@ -606,7 +684,7 @@ const App = () => {
                 />
               </div>
               <div className="relative">
-                <Lock className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Lock className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
                 <input
                   type="password"
                   placeholder="New Password"
@@ -632,57 +710,57 @@ const App = () => {
               </div>
             </div>
           ) : (
-          <div className="space-y-4">
-            {showSignup && (
+            <div className="space-y-4">
+              {showSignup && (
+                <div className="relative">
+                  <User className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
+                  <input
+                    type="text"
+                    placeholder="Full Name"
+                    value={signupName}
+                    onChange={(e) => setSignupName(e.target.value)}
+                    maxLength={50}
+                    className="w-full bg-white/10 border border-white/30 rounded-lg px-12 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                </div>
+              )}
               <div className="relative">
-                <User className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Mail className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
                 <input
-                  type="text"
-                  placeholder="Full Name"
-                  value={signupName}
-                  onChange={(e) => setSignupName(e.target.value)}
+                  type="email"
+                  placeholder="Email Address"
+                  value={showSignup ? signupEmail : loginEmail}
+                  onChange={(e) => showSignup ? setSignupEmail(e.target.value) : setLoginEmail(e.target.value)}
+                  maxLength={100}
+                  className="w-full bg-white/10 border border-white/30 rounded-lg px-12 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
+              <div className="relative">
+                <Lock className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={showSignup ? signupPassword : loginPassword}
+                  onChange={(e) => showSignup ? setSignupPassword(e.target.value) : setLoginPassword(e.target.value)}
                   maxLength={50}
                   className="w-full bg-white/10 border border-white/30 rounded-lg px-12 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
                 />
               </div>
-            )}
-            <div className="relative">
-              <Mail className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="email"
-                placeholder="Email Address"
-                value={showSignup ? signupEmail : loginEmail}
-                onChange={(e) => showSignup ? setSignupEmail(e.target.value) : setLoginEmail(e.target.value)}
-                maxLength={100}
-                className="w-full bg-white/10 border border-white/30 rounded-lg px-12 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
+              <button
+                onClick={showSignup ? handleSignup : handleLogin}
+                disabled={isLoading}
+                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-semibold py-3 rounded-lg transition-all duration-200"
+              >
+                {isLoading ? 'Processing...' : (showSignup ? 'Create Explorer Account' : 'Sign In')}
+              </button>
+              {!showSignup && !showForgot && (
+                <div className="text-right">
+                  <button className="text-blue-300 hover:text-blue-200 text-sm underline" onClick={handleForgotPassword}>
+                    Forgot password?
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="relative">
-              <Lock className="w-5 h-5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="password"
-                placeholder="Password"
-                value={showSignup ? signupPassword : loginPassword}
-                onChange={(e) => showSignup ? setSignupPassword(e.target.value) : setLoginPassword(e.target.value)}
-                maxLength={50}
-                className="w-full bg-white/10 border border-white/30 rounded-lg px-12 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
-            <button
-              onClick={showSignup ? handleSignup : handleLogin}
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-semibold py-3 rounded-lg transition-all duration-200"
-            >
-              {isLoading ? 'Processing...' : (showSignup ? 'Create Explorer Account' : 'Sign In')}
-            </button>
-            {!showSignup && !showForgot && (
-              <div className="text-right">
-                <button className="text-blue-300 hover:text-blue-200 text-sm underline" onClick={handleForgotPassword}>
-                  Forgot password?
-                </button>
-              </div>
-            )}
-          </div>
           )}
 
           <div className="mt-6 text-center">
@@ -708,17 +786,16 @@ const App = () => {
           </div>
         </div>
       </div>
-    );
-  }
+    </PageContainer>
+  );
 
-  // UPGRADE
-  if (currentView === 'upgrade') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-800 flex items-center justify-center p-4">
+  const UpgradeView = () => (
+    <PageContainer gradient="from-purple-900 via-blue-900 to-indigo-800">
+      <div className="flex-1 flex items-center justify-center p-4">
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 w-full max-w-lg border border-white/20 shadow-2xl">
           <div className="text-center mb-8">
             <div className="bg-gradient-to-r from-yellow-400 to-orange-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Crown className="w-8 h-8 text-white" />
+              <Crown className="w-8 h-8 text-white" aria-hidden="true" />
             </div>
             <h1 className="text-3xl font-bold text-white mb-2">Upgrade to Pro</h1>
             <p className="text-gray-200">Unlock unlimited queries and advanced features</p>
@@ -727,7 +804,7 @@ const App = () => {
           <div className="space-y-6">
             <div className="bg-green-500/20 border border-green-400/30 rounded-lg p-4">
               <h3 className="text-green-300 font-semibold mb-2">Current Plan: Explorer</h3>
-              <p className="text-green-100 text-sm">Queries used: {user.queriesUsed}/{MAX_QUERIES_EXPLORER}</p>
+              <p className="text-green-100 text-sm">Queries used: {user?.queriesUsed}/{MAX_QUERIES_EXPLORER}</p>
             </div>
 
             <div className="bg-yellow-500/20 border border-yellow-400/30 rounded-lg p-4">
@@ -753,7 +830,7 @@ const App = () => {
                 disabled={isLoading}
                 className="w-full bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-semibold py-3 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2"
               >
-                {isLoading ? <span>Processing Payment...</span> : (<><CreditCard className="w-5 h-5" /><span>Upgrade Now</span></>)}
+                {isLoading ? <span>Processing Payment...</span> : (<><CreditCard className="w-5 h-5" aria-hidden="true" /><span>Upgrade Now</span></>)}
               </button>
 
               <button
@@ -766,19 +843,30 @@ const App = () => {
           </div>
         </div>
       </div>
-    );
-  }
+    </PageContainer>
+  );
 
-  // ADMIN
-  if (currentView === 'admin' && user && getUserLimits(user.role).canManageUsers) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-red-900 via-purple-900 to-indigo-800 p-6">
+  const AdminView = () => (
+    <PageContainer gradient="from-red-900 via-purple-900 to-indigo-800">
+      <AppHeader
+        user={user}
+        onOpenDownloads={() => setCurrentView('downloads')}
+        onOpenAdmin={() => setCurrentView('admin')}
+        onUpgrade={handleUpgradeRequest}
+        onLogout={handleLogout}
+        userMenuOpen={userMenuOpen}
+        setUserMenuOpen={setUserMenuOpen}
+        getRoleColor={getRoleColor}
+        getRoleIcon={getRoleIcon}
+      />
+
+      <div className="flex-1 p-4 sm:p-6">
         <div className="max-w-6xl mx-auto">
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 mb-6 border border-white/20">
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-3">
                 <div className="bg-gradient-to-r from-red-400 to-pink-500 w-12 h-12 rounded-full flex items-center justify-center">
-                  <Settings className="w-6 h-6 text-white" />
+                  <Settings className="w-6 h-6 text-white" aria-hidden="true" />
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-white drop-shadow">Admin Dashboard</h1>
@@ -790,13 +878,14 @@ const App = () => {
                   onClick={() => setCurrentView('chat')}
                   className="bg-blue-600/70 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
                 >
-                  <ArrowLeft className="w-4 h-4" /><span>Back to Chat</span>
+                  <ArrowLeft className="w-4 h-4" aria-hidden="true" /><span>Back to Chat</span>
                 </button>
                 <button
                   onClick={handleLogout}
                   className="bg-red-500/20 hover:bg-red-500/30 text-red-300 p-2 rounded-lg transition-colors"
+                  aria-label="Sign out"
                 >
-                  <LogOut className="w-5 h-5" />
+                  <LogOut className="w-5 h-5" aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -804,15 +893,15 @@ const App = () => {
 
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
             <h2 className="text-xl font-semibold text-white mb-6 flex items-center">
-              <Users className="w-5 h-5 mr-2" /> User Management
+              <Users className="w-5 h-5 mr-2" aria-hidden="true" /> User Management
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {userDatabase.filter(u => u.id !== user.id).map(dbUser => (
                 <div key={dbUser.id} className="bg-white/5 p-4 rounded-lg border border-white/10">
                   <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="text-white font-medium">{dbUser.name}</h3>
-                      <p className="text-gray-300 text-sm">{dbUser.email}</p>
+                    <div className="min-w-0">
+                      <h3 className="text-white font-medium truncate" title={dbUser.name}>{dbUser.name}</h3>
+                      <p className="text-gray-300 text-sm break-all">{dbUser.email}</p>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded ${getRoleColor(dbUser.role)} shadow-sm`}>
                       {dbUser.role.toUpperCase()}
@@ -825,28 +914,30 @@ const App = () => {
                     </p>
                     <p className="text-gray-300 text-xs">Created: {dbUser.createdAt ? new Date(dbUser.createdAt).toLocaleDateString() : 'Unknown'}</p>
                   </div>
-                    <div className="space-y-2">
-                      <p className="text-white text-sm font-medium">Change Role:</p>
-                      <div className="flex space-x-1">
-                        <button onClick={() => updateUserRole(dbUser.id, 'explorer')} disabled={dbUser.role === 'explorer'}
-                          className={`px-2 py-1 rounded text-xs ${dbUser.role === 'explorer' ? 'bg-green-500/40 text-black/70' : 'bg-green-500 text-black hover:bg-green-400'}`}>Explorer</button>
-                        <button onClick={() => updateUserRole(dbUser.id, 'pro')} disabled={dbUser.role === 'pro'}
-                          className={`px-2 py-1 rounded text-xs ${dbUser.role === 'pro' ? 'bg-yellow-500/40 text-black/70' : 'bg-yellow-400 text-black hover:bg-yellow-300'}`}>Pro</button>
-                        <button onClick={() => updateUserRole(dbUser.id, 'admin')} disabled={dbUser.role === 'admin'}
-                          className={`px-2 py-1 rounded text-xs ${dbUser.role === 'admin' ? 'bg-red-600/40 text-white/70' : 'bg-red-600 text-white hover:bg-red-500'}`}>Admin</button>
-                      </div>
+                  <div className="space-y-2">
+                    <p className="text-white text-sm font-medium">Change Role:</p>
+                    <div className="flex flex-wrap gap-1">
+                      <button onClick={() => updateUserRole(dbUser.id, 'explorer')} disabled={dbUser.role === 'explorer'}
+                        className={`px-2 py-1 rounded text-xs ${dbUser.role === 'explorer' ? 'bg-green-500/40 text-black/70' : 'bg-green-500 text-black hover:bg-green-400'}`}>Explorer</button>
+                      <button onClick={() => updateUserRole(dbUser.id, 'pro')} disabled={dbUser.role === 'pro'}
+                        className={`px-2 py-1 rounded text-xs ${dbUser.role === 'pro' ? 'bg-yellow-500/40 text-black/70' : 'bg-yellow-400 text-black hover:bg-yellow-300'}`}>Pro</button>
+                      <button onClick={() => updateUserRole(dbUser.id, 'admin')} disabled={dbUser.role === 'admin'}
+                        className={`px-2 py-1 rounded text-xs ${dbUser.role === 'admin' ? 'bg-red-600/40 text-white/70' : 'bg-red-600 text-white hover:bg-red-500'}`}>Admin</button>
                     </div>
+                  </div>
                 </div>
               ))}
+              {userDatabase.filter(u => u.id !== user.id).length === 0 && (
+                <div className="text-gray-300 text-sm">No users to manage.</div>
+              )}
             </div>
           </div>
         </div>
       </div>
-    );
-  }
+    </PageContainer>
+  );
 
-  // DOWNLOADS (aligned cards)
-  if (currentView === 'downloads' && user) {
+  const DownloadsView = () => {
     const links = [
       { key: 'haccp', label: 'HACCP plan template (by product/process)' },
       { key: 'pcqi', label: 'FSMA Preventive Controls plan outline' },
@@ -867,54 +958,53 @@ const App = () => {
     );
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 flex flex-col">
-        {/* Header */}
-        <div className="bg-white/10 backdrop-blur-lg border-b border-white/20 px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-3">
-            <div className="bg-gradient-to-r from-blue-400 to-purple-500 w-10 h-10 rounded-full flex items-center justify-center">
-              <Download className="w-5 h-5 text-white" />
+      <PageContainer>
+        <AppHeader
+          user={user}
+          onOpenDownloads={() => setCurrentView('downloads')}
+          onOpenAdmin={() => setCurrentView('admin')}
+          onUpgrade={handleUpgradeRequest}
+          onLogout={handleLogout}
+          userMenuOpen={userMenuOpen}
+          setUserMenuOpen={setUserMenuOpen}
+          getRoleColor={getRoleColor}
+          getRoleIcon={getRoleIcon}
+        />
+        <div className="flex-1 p-4 sm:p-6">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="bg-gradient-to-r from-blue-400 to-purple-500 w-10 h-10 rounded-full flex items-center justify-center">
+                  <Download className="w-5 h-5 text-white" aria-hidden="true" />
+                </div>
+                <div>
+                  <h1 className="text-white font-extrabold drop-shadow">Downloads</h1>
+                  <p className="text-gray-200 text-sm">Click an item to auto‑generate and open in Chat</p>
+                </div>
+              </div>
+              <button onClick={() => setCurrentView('chat')}
+                className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-500">Back to Chat</button>
             </div>
-            <div>
-              <h1 className="text-white font-extrabold drop-shadow">Downloads</h1>
-              <p className="text-gray-200 text-sm">Click an item to auto-generate and open in Chat</p>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <button onClick={() => setCurrentView('chat')}
-              className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-500">Back to Chat</button>
-            <button onClick={handleLogout}
-              className="bg-red-600/70 hover:bg-red-600 text-white p-2 rounded-lg">
-              <LogOut className="w-5 h-5" />
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {links.map((item) => <Card key={item.key} item={item} />)}
+            </div>
+
+            <div className="w-full mt-4 p-3 bg-white/10 border border-white/20 rounded-lg text-gray-300 text-xs">
+              <div className="font-medium">{COPYRIGHT}</div>
+              <div>{DISCLAIMER}</div>
+            </div>
           </div>
         </div>
-
-        <div className="flex-1 p-6">
-          <div className="max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {links.map((item) => <Card key={item.key} item={item} />)}
-          </div>
-
-          {/* Footer disclaimer visible here too */}
-          <div className="w-full mt-3 p-3 bg-white/10 border border-white/20 rounded-lg text-gray-300 text-xs">
-            <div className="font-medium">© 2025 Food Compliance Copilot. All rights reserved.</div>
-            <div>
-              AI-generated compliance guidance. Verify with official regulations and qualified professionals before final decisions.
-              Not legal advice. Contact: themastyogi@gmail.com
-            </div>
-          </div>
-        </div>
-      </div>
+      </PageContainer>
     );
-  }
+  };
 
-  // CHAT
-  if (currentView === 'chat' && user) {
+  const ChatView = () => {
     const userLimits = getUserLimits(user.role);
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 flex flex-col">
-        {/* Tiny inline keyframes for typing dots */}
+      <PageContainer>
         <style>{`
           @keyframes typing-bounce {
             0%, 80%, 100% { transform: translateY(0); opacity: .4; }
@@ -922,76 +1012,23 @@ const App = () => {
           }
         `}</style>
 
-        {/* Header */}
-        <div className="relative bg-white/10 backdrop-blur-lg border-b border-white/20 px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-3">
-            <div className="bg-gradient-to-r from-blue-400 to-purple-500 w-10 h-10 rounded-full flex items-center justify-center">
-              <Shield className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-white font-extrabold drop-shadow">Food Compliance Copilot</h1>
-              <p className="text-gray-200 text-sm">AI-Powered Regulatory Guidance</p>
-            </div>
-          </div>
+        <AppHeader
+          user={user}
+          onOpenDownloads={() => setCurrentView('downloads')}
+          onOpenAdmin={() => setCurrentView('admin')}
+          onUpgrade={handleUpgradeRequest}
+          onLogout={handleLogout}
+          userMenuOpen={userMenuOpen}
+          setUserMenuOpen={setUserMenuOpen}
+          getRoleColor={getRoleColor}
+          getRoleIcon={getRoleIcon}
+        />
 
-          <div className="flex items-center space-x-2">
-            {/* User menu trigger */}
-            <button
-              id="user-menu-trigger"
-              onClick={() => setUserMenuOpen((v) => !v)}
-              className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center gap-2"
-              title="Account"
-            >
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded ${getRoleColor(user.role)} shadow`}>
-                {getRoleIcon(user.role)}
-                <span className="text-xs font-bold tracking-wide">{user.role.toUpperCase()}</span>
-              </span>
-              <span className="ml-1">{user.name}</span>
-              <ChevronDown className="w-4 h-4 opacity-80" />
-            </button>
-
-            {userMenuOpen && (
-              <div
-                id="user-menu-dropdown"
-                className="absolute right-6 top-16 w-64 bg-gray-900/95 border border-white/15 rounded-xl shadow-lg text-gray-100 z-50"
-              >
-                <div className="px-4 py-3 border-b border-white/10">
-                  <div className="text-sm">Signed in as</div>
-                  <div className="font-semibold break-all">{user.email}</div>
-                </div>
-                <div className="px-4 py-3 border-b border-white/10">
-                  <div className="text-sm">Current:</div>
-                  <div className="mt-1 inline-flex items-center gap-2 px-2 py-0.5 rounded text-xs font-bold tracking-wide bg-green-500 text-black">
-                    {user.role.toUpperCase()}
-                  </div>
-                  <div className="text-xs mt-2 text-gray-300">
-                    Queries used: {userLimits.maxQueries === -1 ? `${user.queriesUsed || 0} (unlimited plan)` : `${user.queriesUsed || 0}/${userLimits.maxQueries}`}
-                  </div>
-                </div>
-                <button onClick={() => { setCurrentView('downloads'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-white/10">Downloads</button>
-                {user.role === 'explorer' && (
-                  <button onClick={handleUpgradeRequest} className="w-full text-left px-4 py-3 hover:bg-white/10">Upgrade to Pro</button>
-                )}
-                <button
-                  onClick={() => { setCurrentView('admin'); setUserMenuOpen(false); }}
-                  className="w-full text-left px-4 py-3 hover:bg-white/10"
-                  disabled={!userLimits.canManageUsers}
-                  style={{ opacity: userLimits.canManageUsers ? 1 : 0.5, cursor: userLimits.canManageUsers ? 'pointer' : 'not-allowed' }}
-                >
-                  Admin Dashboard
-                </button>
-                <button onClick={handleLogout} className="w-full text-left px-4 py-3 hover:bg-white/10 text-red-300">Sign out</button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Chat Area */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           {chatMessages.length === 0 && (
-            <div className="text-center py-12">
+            <div className="text-center py-10">
               <div className="bg-gradient-to-r from-blue-400 to-purple-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MessageCircle className="w-8 h-8 text-white" />
+                <MessageCircle className="w-8 h-8 text-white" aria-hidden="true" />
               </div>
               <h3 className="text-white text-xl font-semibold mb-2">Welcome to Food Compliance Copilot</h3>
               <p className="text-gray-200 max-w-md mx-auto">
@@ -1000,7 +1037,6 @@ const App = () => {
             </div>
           )}
 
-          {/* Visual Menu */}
           {menuMode && (
             <div className="bg-white/10 backdrop-blur-sm text-gray-100 border border-white/20 rounded-lg p-4">
               <h4 className="text-white font-semibold mb-2">Menu</h4>
@@ -1018,12 +1054,11 @@ const App = () => {
             </div>
           )}
 
-          {/* Messages */}
           {chatMessages.map((message, index) => (
             <div key={index} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
               {message.type === 'bot-html' ? (
                 <div
-                  className="max-w-xl lg:max-w-3xl px-4 py-3 rounded-lg bg-white/10 backdrop-blur-sm text-gray-100 border border-white/20"
+                  className="max-w-xl lg:max-w-3xl px-4 py-3 rounded-lg bg-white/10 backdrop-blur-sm text-gray-100 border border-white/20 overflow-x-auto"
                   dangerouslySetInnerHTML={{ __html: message.html }}
                 />
               ) : (
@@ -1040,7 +1075,6 @@ const App = () => {
             </div>
           ))}
 
-          {/* Template download bar */}
           {templateContentHTML && (
             <div className="bg-white/10 backdrop-blur-sm text-gray-100 border border-white/20 rounded-lg p-4">
               <h4 className="text-white font-semibold mb-2">Download Options</h4>
@@ -1071,9 +1105,8 @@ const App = () => {
           )}
         </div>
 
-        {/* Input Bar */}
-        <div className="bg-white/10 backdrop-blur-lg border-t border-white/20 p-6">
-          <div className="flex space-x-4">
+        <div className="bg-white/10 backdrop-blur-lg border-t border-white/20 p-4 sm:p-6">
+          <div className="max-w-6xl mx-auto flex gap-2">
             <input
               type="text"
               value={inputMessage}
@@ -1081,29 +1114,36 @@ const App = () => {
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               placeholder="Ask about food labeling, allergens, HACCP, FSSAI, EU FIC... (type 'menu' for templates)"
               className="flex-1 bg-white/10 border border-white/30 rounded-lg px-4 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              disabled={isLoading || (getUserLimits(user.role).maxQueries !== -1 && user.queriesUsed >= getUserLimits(user.role).maxQueries)}
+              disabled={isLoading || ((getUserLimits(user.role).maxQueries !== -1) && user.queriesUsed >= getUserLimits(user.role).maxQueries)}
+              aria-label="Message input"
             />
             <button
               onClick={sendMessage}
-              disabled={isLoading || !inputMessage.trim() || (getUserLimits(user.role).maxQueries !== -1 && user.queriesUsed >= getUserLimits(user.role).maxQueries)}
+              disabled={isLoading || !inputMessage.trim() || ((getUserLimits(user.role).maxQueries !== -1) && user.queriesUsed >= getUserLimits(user.role).maxQueries)}
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:from-gray-500 disabled:to-gray-600 text-white p-3 rounded-lg transition-all duration-200"
+              aria-label="Send message"
             >
-              <Send className="w-5 h-5" />
+              <Send className="w-5 h-5" aria-hidden="true" />
             </button>
           </div>
         </div>
 
-        {/* Disclaimer BELOW typing space */}
-        <div className="bg-transparent px-6 pb-6">
-          <div className="max-w-4xl mx-auto p-3 bg-white/10 border border-white/20 rounded text-gray-200 text-xs">
+        <div className="bg-transparent px-4 sm:px-6 pb-6">
+          <div className="max-w-6xl mx-auto p-3 bg-white/10 border border-white/20 rounded text-gray-200 text-xs">
             <div className="font-medium">{COPYRIGHT}</div>
             <div>{DISCLAIMER}</div>
           </div>
         </div>
-      </div>
+      </PageContainer>
     );
-  }
+  };
 
+  // ===== Top-level render (no hooks in conditionals) =====
+  if (currentView === 'login') return <LoginView />;
+  if (currentView === 'upgrade' && user) return <UpgradeView />;
+  if (currentView === 'admin' && user && getUserLimits(user.role).canManageUsers) return <AdminView />;
+  if (currentView === 'downloads' && user) return <DownloadsView />;
+  if (currentView === 'chat' && user) return <ChatView />;
   return null;
 };
 
