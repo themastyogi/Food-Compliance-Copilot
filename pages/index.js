@@ -139,6 +139,13 @@ const App = () => {
     }
   };
 
+  // ===== EFFECT: fetch users when entering Admin (hooks at top level only) =====
+  useEffect(() => {
+    if (currentView === 'admin' && user && getUserLimits(user.role).canManageUsers) {
+      fetchUsers();
+    }
+  }, [currentView, user]);
+
   // ===== Auth Functions =====
   const handleSignup = async () => {
     if (!signupName.trim() || !signupEmail.trim() || !signupPassword.trim()) {
@@ -570,13 +577,6 @@ const App = () => {
     }
   };
 
-  // ===== EFFECT: fetch users when entering Admin (hooks at top level only) =====
-  useEffect(() => {
-    if (currentView === 'admin' && user && getUserLimits(user.role).canManageUsers) {
-      fetchUsers();
-    }
-  }, [currentView, user]);
-
   // ===== VIEWS =====
 
   // LOGIN/SIGNUP
@@ -825,17 +825,17 @@ const App = () => {
                     </p>
                     <p className="text-gray-300 text-xs">Created: {dbUser.createdAt ? new Date(dbUser.createdAt).toLocaleDateString() : 'Unknown'}</p>
                   </div>
-                  <div className="space-y-2">
-                    <p className="text-white text-sm font-medium">Change Role:</p>
-                    <div className="flex space-x-1">
-                      <button onClick={() => updateUserRole(dbUser.id, 'explorer')} disabled={dbUser.role === 'explorer'}
-                        className={`px-2 py-1 rounded text-xs ${dbUser.role === 'explorer' ? 'bg-green-500/40 text-black/70' : 'bg-green-500 text-black hover:bg-green-400'}`}>Explorer</button>
-                      <button onClick={() => updateUserRole(dbUser.id, 'pro')} disabled={dbUser.role === 'pro'}
-                        className={`px-2 py-1 rounded text-xs ${dbUser.role === 'pro' ? 'bg-yellow-500/40 text-black/70' : 'bg-yellow-400 text-black hover:bg-yellow-300'}`}>Pro</button>
-                      <button onClick={() => updateUserRole(dbUser.id, 'admin')} disabled={dbUser.role === 'admin'}
-                        className={`px-2 py-1 rounded text-xs ${dbUser.role === 'admin' ? 'bg-red-600/40 text-white/70' : 'bg-red-600 text-white hover:bg-red-500'}`}>Admin</button>
+                    <div className="space-y-2">
+                      <p className="text-white text-sm font-medium">Change Role:</p>
+                      <div className="flex space-x-1">
+                        <button onClick={() => updateUserRole(dbUser.id, 'explorer')} disabled={dbUser.role === 'explorer'}
+                          className={`px-2 py-1 rounded text-xs ${dbUser.role === 'explorer' ? 'bg-green-500/40 text-black/70' : 'bg-green-500 text-black hover:bg-green-400'}`}>Explorer</button>
+                        <button onClick={() => updateUserRole(dbUser.id, 'pro')} disabled={dbUser.role === 'pro'}
+                          className={`px-2 py-1 rounded text-xs ${dbUser.role === 'pro' ? 'bg-yellow-500/40 text-black/70' : 'bg-yellow-400 text-black hover:bg-yellow-300'}`}>Pro</button>
+                        <button onClick={() => updateUserRole(dbUser.id, 'admin')} disabled={dbUser.role === 'admin'}
+                          className={`px-2 py-1 rounded text-xs ${dbUser.role === 'admin' ? 'bg-red-600/40 text-white/70' : 'bg-red-600 text-white hover:bg-red-500'}`}>Admin</button>
+                      </div>
                     </div>
-                  </div>
                 </div>
               ))}
             </div>
