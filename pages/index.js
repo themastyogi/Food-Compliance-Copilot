@@ -85,49 +85,36 @@ const App = () => {
   const [forgotNewPassword, setForgotNewPassword] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  // Demo DB (persisted)
-  const [userDatabase, setUserDatabase] = useState([
-    { id: 1, email: 'admin@example.com', password: 'admin123', name: 'Admin User', role: 'admin', queriesUsed: 0, createdAt: new Date().toISOString() },
-    { id: 2, email: 'explorer@example.com', password: 'explorer123', name: 'Explorer User', role: 'explorer', queriesUsed: 2, createdAt: new Date().toISOString() },
-    { id: 3, email: 'pro@example.com', password: 'pro123', name: 'Pro User', role: 'pro', queriesUsed: 15, createdAt: new Date().toISOString() }
-  ]);
+  // Users list for admin (fetched from API)
+  const [userDatabase, setUserDatabase] = useState([]);
 
   // Menu / Templates
   const [menuMode, setMenuMode] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [templateContentHTML, setTemplateContentHTML] = useState(''); // store HTML
 
-  // ===== Persistence =====
+  // Check for existing session on app load
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('fcc_user_db');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) setUserDatabase(parsed);
-      }
-    } catch {}
+    checkAuthStatus();
   }, []);
-  useEffect(() => {
-    try { localStorage.setItem('fcc_user_db', JSON.stringify(userDatabase)); } catch {}
-  }, [userDatabase]);
-  useEffect(() => {
+
+  const checkAuthStatus = async () => {
     try {
-      const raw = localStorage.getItem('fcc_current_user');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.email) {
-          setUser(parsed);
-          setCurrentView('chat');
-        }
+      const response = await fetch('/api/auth/me', {
+        method: 'GET',
+        credentials: 'include' // Include cookies for session
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
+        setCurrentView('chat');
       }
-    } catch {}
-  }, []);
-  useEffect(() => {
-    try {
-      if (user) localStorage.setItem('fcc_current_user', JSON.stringify(user));
-      else localStorage.removeItem('fcc_current_user');
-    } catch {}
-  }, [user]);
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      // User not logged in, stay on login page
+    }
+  };
 
   // Close user dropdown on outside click
   useEffect(() => {
@@ -152,60 +139,80 @@ const App = () => {
     }
   };
 
-  // ===== Auth =====
+  // ===== Auth Functions =====
   const handleSignup = async () => {
     if (!signupName.trim() || !signupEmail.trim() || !signupPassword.trim()) {
       alert('Please fill in all fields'); return;
     }
     if (!isValidEmail(signupEmail)) { alert('Please enter a valid email address'); return; }
     if (signupPassword.length < 6) { alert('Password must be at least 6 characters'); return; }
-    if (userDatabase.find(u => u.email === signupEmail.toLowerCase())) {
-      alert('User with this email already exists'); return;
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: signupName.trim(),
+          email: signupEmail.toLowerCase(),
+          password: signupPassword
+        }),
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setUser(data.user);
+        setCurrentView('chat');
+        setSignupName(''); setSignupEmail(''); setSignupPassword('');
+        alert('Account created successfully!');
+      } else {
+        alert(data.error || 'Signup failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Signup error:', error);
+      alert('Signup failed. Please try again.');
+    } finally { 
+      setIsLoading(false); 
+    }
+  };
+
+  const handleLogin = async () => {
+    if (!loginEmail.trim() || !loginPassword.trim()) { 
+      alert('Please fill in all fields'); return; 
+    }
+    if (!isValidEmail(loginEmail)) { 
+      alert('Please enter a valid email address'); return; 
     }
 
     setIsLoading(true);
     try {
-      await new Promise(r => setTimeout(r, 400));
-      const newUser = {
-        id: Date.now(),
-        email: signupEmail.toLowerCase(),
-        password: signupPassword,
-        name: signupName.trim(),
-        role: 'explorer',
-        queriesUsed: 0,
-        createdAt: new Date().toISOString()
-      };
-      setUserDatabase(prev => [...prev, newUser]);
-      setUser(newUser);
-      setCurrentView('chat');
-      setSignupName(''); setSignupEmail(''); setSignupPassword('');
-    } catch (e) {
-      console.error('Signup error:', e);
-      alert('Signup failed. Please try again.');
-    } finally { setIsLoading(false); }
-  };
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: loginEmail.toLowerCase(),
+          password: loginPassword
+        }),
+        credentials: 'include'
+      });
 
-  const handleLogin = async () => {
-    if (!loginEmail.trim() || !loginPassword.trim()) { alert('Please fill in all fields'); return; }
-    if (!isValidEmail(loginEmail)) { alert('Please enter a valid email address'); return; }
+      const data = await response.json();
 
-    setIsLoading(true);
-    try {
-      await new Promise(r => setTimeout(r, 300));
-      const foundUser = userDatabase.find(
-        u => u.email === loginEmail.toLowerCase() && u.password === loginPassword
-      );
-      if (foundUser) {
-        setUser(foundUser);
+      if (response.ok) {
+        setUser(data.user);
         setCurrentView('chat');
         setLoginEmail(''); setLoginPassword('');
       } else {
-        alert('Invalid email or password');
+        alert(data.error || 'Invalid email or password');
       }
-    } catch (e) {
-      console.error('Login error:', e);
+    } catch (error) {
+      console.error('Login error:', error);
       alert('Login failed. Please try again.');
-    } finally { setIsLoading(false); }
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   const handleForgotPassword = () => {
@@ -214,23 +221,56 @@ const App = () => {
     setLoginEmail('');
     setLoginPassword('');
   };
-  const submitForgotPassword = () => {
-    if (!isValidEmail(forgotEmail)) { alert('Enter a valid email'); return; }
-    if (!forgotNewPassword || forgotNewPassword.length < 6) { alert('New password must be at least 6 characters'); return; }
-    const exists = userDatabase.find(u => u.email === forgotEmail.toLowerCase());
-    if (!exists) { alert('No user found with this email'); return; }
-    const updatedDb = userDatabase.map(u =>
-      u.email === forgotEmail.toLowerCase() ? { ...u, password: forgotNewPassword } : u
-    );
-    setUserDatabase(updatedDb);
-    alert('Password updated. Please sign in.');
-    setShowForgot(false);
-    setShowSignup(false);
-    setForgotEmail('');
-    setForgotNewPassword('');
+
+  const submitForgotPassword = async () => {
+    if (!isValidEmail(forgotEmail)) { 
+      alert('Enter a valid email'); return; 
+    }
+    if (!forgotNewPassword || forgotNewPassword.length < 6) { 
+      alert('New password must be at least 6 characters'); return; 
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: forgotEmail.toLowerCase(),
+          newPassword: forgotNewPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('Password updated successfully. Please sign in.');
+        setShowForgot(false);
+        setShowSignup(false);
+        setForgotEmail('');
+        setForgotNewPassword('');
+      } else {
+        alert(data.error || 'Password reset failed');
+      }
+    } catch (error) {
+      console.error('Password reset error:', error);
+      alert('Password reset failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+    
+    // Clear local state
     setUser(null);
     setCurrentView('login');
     setChatMessages([]);
@@ -241,26 +281,78 @@ const App = () => {
     setUserMenuOpen(false);
   };
 
-  const handleUpgradeRequest = () => { setCurrentView('upgrade'); setUserMenuOpen(false); };
+  const handleUpgradeRequest = () => { 
+    setCurrentView('upgrade'); 
+    setUserMenuOpen(false); 
+  };
 
   const processUpgrade = async () => {
     setIsLoading(true);
     try {
-      await new Promise(r => setTimeout(r, 800));
-      const updatedUser = { ...user, role: 'pro' };
-      setUser(updatedUser);
-      setUserDatabase(prev => prev.map(u => (u.id === user.id ? updatedUser : u)));
-      alert('Congratulations! You have been upgraded to Pro. You now have unlimited queries!');
-      setCurrentView('chat');
-    } catch {
+      const response = await fetch('/api/users/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setUser(data.user);
+        alert('Congratulations! You have been upgraded to Pro. You now have unlimited queries!');
+        setCurrentView('chat');
+      } else {
+        alert(data.error || 'Upgrade failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Upgrade error:', error);
       alert('Upgrade failed. Please try again.');
-    } finally { setIsLoading(false); }
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
-  const updateUserRole = (userId, newRole) => {
-    setUserDatabase(prev => prev.map(u => (u.id === userId ? { ...u, role: newRole } : u)));
-    if (user && user.id === userId) setUser(prev => ({ ...prev, role: newRole }));
-    alert(`User role updated to ${newRole}`);
+  // Fetch users for admin dashboard
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch('/api/users', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUserDatabase(data.users || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+    }
+  };
+
+  const updateUserRole = async (userId, newRole) => {
+    try {
+      const response = await fetch('/api/users/update-role', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, role: newRole }),
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Update local state
+        setUserDatabase(prev => prev.map(u => (u.id === userId ? { ...u, role: newRole } : u)));
+        if (user && user.id === userId) {
+          setUser(prev => ({ ...prev, role: newRole }));
+        }
+        alert(`User role updated to ${newRole}`);
+      } else {
+        alert(data.error || 'Failed to update user role');
+      }
+    } catch (error) {
+      console.error('Role update error:', error);
+      alert('Failed to update user role');
+    }
   };
 
   // ===== Prompt catalog & template generation =====
@@ -297,7 +389,8 @@ const App = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messages: [{ role: 'user', content: promptToHTMLInstruction(instruction) }]
-      })
+      }),
+      credentials: 'include'
     });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => '');
@@ -434,7 +527,8 @@ const App = () => {
       const resp = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: oaMessages })
+        body: JSON.stringify({ messages: oaMessages }),
+        credentials: 'include'
       });
 
       if (!resp.ok) {
@@ -445,12 +539,13 @@ const App = () => {
 
       const data = await resp.json();
       const assistantText = data.reply || 'Sorry, I could not generate a response.';
-      const html = mdToHTML(assistantText);               // ← convert to readable HTML
+      const html = mdToHTML(assistantText);
       setChatMessages(prev => [...prev, { type: 'bot-html', html }]);
 
-      const updatedUser = { ...user, queriesUsed: user.queriesUsed + 1 };
-      setUser(updatedUser);
-      setUserDatabase(prev => prev.map(u => (u.id === user.id ? updatedUser : u)));
+      // Update user query count on server
+      if (data.user) {
+        setUser(data.user);
+      }
     } catch (err) {
       console.error('Chat error:', err);
       setChatMessages(prev => [...prev, { type: 'bot', content: 'Sorry, an error occurred. Please try again.' }]);
@@ -516,9 +611,10 @@ const App = () => {
               <div className="flex gap-2">
                 <button
                   onClick={submitForgotPassword}
-                  className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 rounded-lg transition"
+                  disabled={isLoading}
+                  className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-700 text-white font-semibold py-3 rounded-lg transition"
                 >
-                  Reset Password
+                  {isLoading ? 'Resetting...' : 'Reset Password'}
                 </button>
                 <button
                   onClick={() => { setShowForgot(false); setShowSignup(false); }}
@@ -600,17 +696,6 @@ const App = () => {
             )}
           </div>
 
-          {SHOW_DEMO_INFO && (
-            <div className="mt-6 p-3 bg-blue-500/20 rounded-lg border border-blue-400/30">
-              <p className="text-sm text-blue-200 mb-2">Demo Accounts:</p>
-              <p className="text-xs text-blue-300">Admin: admin@example.com / admin123</p>
-              <p className="text-xs text-blue-300">Explorer: explorer@example.com / explorer123</p>
-              <p className="text-xs text-blue-300">Pro: pro@example.com / pro123</p>
-            </div>
-          )}
-
-          {SHOW_SECONDARY_IMAGE && (<div className="mt-4 rounded-lg overflow-hidden">{/* hidden image */}</div>)}
-
           <div className="mt-4 p-3 bg-green-500/20 rounded-lg border border-green-400/30">
             <p className="text-xs text-green-100"><strong>New users start as Explorer</strong> (5 free queries). Upgrade to Pro for unlimited queries. Admins can manage all users.</p>
           </div>
@@ -661,7 +746,7 @@ const App = () => {
                 disabled={isLoading}
                 className="w-full bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-semibold py-3 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2"
               >
-                {isLoading ? <span>Processing Payment...</span> : (<><CreditCard className="w-5 h-5" /><span>Upgrade Now (Demo)</span></>)}
+                {isLoading ? <span>Processing Payment...</span> : (<><CreditCard className="w-5 h-5" /><span>Upgrade Now</span></>)}
               </button>
 
               <button
@@ -671,12 +756,6 @@ const App = () => {
                 Maybe Later
               </button>
             </div>
-
-            <div className="mt-4 p-3 bg-gray-500/20 rounded-lg border border-gray-400/30">
-              <p className="text-xs text-gray-200 text-center">
-                This is a demo upgrade process. In a real application, integrate with a payment provider.
-              </p>
-            </div>
           </div>
         </div>
       </div>
@@ -685,6 +764,13 @@ const App = () => {
 
   // ADMIN
   if (currentView === 'admin' && user && getUserLimits(user.role).canManageUsers) {
+    // Fetch users when entering admin view
+    useEffect(() => {
+      if (currentView === 'admin') {
+        fetchUsers();
+      }
+    }, [currentView]);
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-900 via-purple-900 to-indigo-800 p-6">
         <div className="max-w-6xl mx-auto">
@@ -734,10 +820,10 @@ const App = () => {
                   </div>
                   <div className="mb-4">
                     <p className="text-gray-200 text-sm">
-                      Queries: <span className="font-medium">{dbUser.queriesUsed}</span>
+                      Queries: <span className="font-medium">{dbUser.queriesUsed || 0}</span>
                       {dbUser.role === 'explorer' && ` / ${MAX_QUERIES_EXPLORER}`}
                     </p>
-                    <p className="text-gray-300 text-xs">Created: {new Date(dbUser.createdAt).toLocaleDateString()}</p>
+                    <p className="text-gray-300 text-xs">Created: {dbUser.createdAt ? new Date(dbUser.createdAt).toLocaleDateString() : 'Unknown'}</p>
                   </div>
                   <div className="space-y-2">
                     <p className="text-white text-sm font-medium">Change Role:</p>
@@ -754,7 +840,6 @@ const App = () => {
               ))}
             </div>
           </div>
-
         </div>
       </div>
     );
@@ -819,7 +904,7 @@ const App = () => {
             </div>
           </div>
         </div>
-      </div> {/* ← FIX: close the outer container */}
+      </div>
     );
   }
 
@@ -880,7 +965,7 @@ const App = () => {
                     {user.role.toUpperCase()}
                   </div>
                   <div className="text-xs mt-2 text-gray-300">
-                    Queries used: {userLimits.maxQueries === -1 ? `${user.queriesUsed} (unlimited plan)` : `${user.queriesUsed}/${userLimits.maxQueries}`}
+                    Queries used: {userLimits.maxQueries === -1 ? `${user.queriesUsed || 0} (unlimited plan)` : `${user.queriesUsed || 0}/${userLimits.maxQueries}`}
                   </div>
                 </div>
                 <button onClick={() => { setCurrentView('downloads'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-white/10">Downloads</button>
