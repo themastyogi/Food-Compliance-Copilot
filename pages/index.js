@@ -570,6 +570,13 @@ const App = () => {
     }
   };
 
+  // ===== EFFECT: fetch users when entering Admin (hooks at top level only) =====
+  useEffect(() => {
+    if (currentView === 'admin' && user && getUserLimits(user.role).canManageUsers) {
+      fetchUsers();
+    }
+  }, [currentView, user]);
+
   // ===== VIEWS =====
 
   // LOGIN/SIGNUP
@@ -764,13 +771,6 @@ const App = () => {
 
   // ADMIN
   if (currentView === 'admin' && user && getUserLimits(user.role).canManageUsers) {
-    // Fetch users when entering admin view
-    useEffect(() => {
-      if (currentView === 'admin') {
-        fetchUsers();
-      }
-    }, [currentView]);
-
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-900 via-purple-900 to-indigo-800 p-6">
         <div className="max-w-6xl mx-auto">
